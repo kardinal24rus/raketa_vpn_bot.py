@@ -1,5 +1,5 @@
 aiogram==3.4.1
 aiohttp==3.9.3
-pydantic==2.5.3
 aiofiles==23.2.1
+pydantic==2.5.3
 typing-extensions==4.9.0
