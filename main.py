@@ -112,4 +112,46 @@ async def show_profile(message: Message):
 
 
 @router.message(lambda m: m.text == "⬅️ Назад к поиску")
-async def back_to_search(message: Mess
+async def back_to_search(message: Message, state: FSMContext):
+    await state.set_state(SearchState.form)
+    await message.answer(
+        "Возвращаемся к форме поиска 👇",
+        reply_markup=search_form_keyboard()
+    )
+
+
+@router.message(lambda m: m.text == "🗑 Сбросить")
+async def reset_form(message: Message):
+    await message.answer(
+        "Форма очищена.",
+        reply_markup=search_form_keyboard()
+    )
+
+
+@router.message(lambda m: m.text == "🔍 Искать")
+async def search_stub(message: Message):
+    await message.answer(
+        "🔍 Поиск запущен...\n\n"
+        "⚠️ Пока это заглушка.\n"
+        "Логика поиска будет подключена дальше."
+    )
+
+
+@router.message(SearchState.form)
+async def form_input_stub(message: Message):
+    await message.answer(
+        f"Поле «{message.text}» выбрано.\n"
+        "Ввод данных будет реализован позже."
+    )
+
+# ------------------ MAIN ------------------
+
+async def main():
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+    dp.include_router(router)
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
