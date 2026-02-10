@@ -2,7 +2,14 @@ import asyncio
 import os
 
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery
+)
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -67,24 +74,19 @@ def search_form_keyboard():
 def profile_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            # Первая строка: Пополнить / Купить запросы
             [
                 InlineKeyboardButton(text="💰 Пополнить", callback_data="top_up"),
                 InlineKeyboardButton(text="🔍 Купить запросы", callback_data="buy_requests")
             ],
-            # Вторая строка: Скрытие данных
             [
                 InlineKeyboardButton(text="🚫 Скрытие данных", callback_data="hide_data")
             ],
-            # Третья строка: Отслеживание
             [
                 InlineKeyboardButton(text="👁 Отслеживание", callback_data="tracking")
             ],
-            # Четвертая строка: Связаться с нами
             [
                 InlineKeyboardButton(text="🎩 Связаться с нами", callback_data="contact")
             ],
-            # Пятая строка: Назад / Настройки / Обновить
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="back"),
                 InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings"),
@@ -101,11 +103,9 @@ router = Router()
 
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
-    # Инициализация дефолтных данных профиля
     await state.set_state(SearchState.form)
     await state.update_data(balance=0, search_count=0, referral_balance=0)
 
-    # 1️⃣ Отправляем твой текст с кнопками
     await message.answer(
         "🕵️ Личность:\n"
         "Иванов Иван Иванович 04.06.1976 - ФИО\n\n"
@@ -113,15 +113,15 @@ async def start(message: Message, state: FSMContext):
         "79999688666 – номер телефона\n"
         "79999688666@mail.ru – email\n\n"
         "🚘 Транспорт:\n"
-        "В395ОК199 – номер автомобиля\n"
-        "XTA211440C5106924 – VIN автомобиля\n\n"
+        "В777ОК199 – номер автомобиля\n"
+        "XTA211550C5106724 – VIN автомобиля\n\n"
         "💬 Социальные сети:\n"
-        "vk.com/sherlock – Вконтакте\n"
-        "tiktok.com/@sherlock – Tiktok\n"
-        "instagram.com/sherlock – Instagram\n"
-        "ok.ru/profile/58460 – Одноклассники\n\n"
+        "vk.com/Blindaglaz – Вконтакте\n"
+        "tiktok.com/@Blindaglaz – Tiktok\n"
+        "instagram.com/Blindaglazk – Instagram\n"
+        "ok.ru/profile/69460 – Одноклассники\n\n"
         "📟 Telegram:\n"
-        "@sherlock, tg123456 – логин или ID\n\n"
+        "@@blindaglaz_bot , tg123456 – логин или ID\n\n"
         "📄 Документы:\n"
         "/vu 1234567890 – водительские права\n"
         "/passport 1234567890 – паспорт\n"
@@ -129,13 +129,13 @@ async def start(message: Message, state: FSMContext):
         "/inn 123456789012 – ИНН\n\n"
         "🌐 Онлайн-следы:\n"
         "/tag хирург москва – поиск по телефонным книгам\n"
-        "sherlock.com или 1.1.1.1 – домен или IP\n\n"
+        "blindaglaz.com или 1.1.1.1 – домен или IP\n\n"
         "🏚 Недвижимость:\n"
-        "/adr Москва, Островитянова, 9к4, 94\n"
-        "77:01:0004042:6987 - кадастровый номер\n\n"
+        "/adr Владивосток, Островская, 9, 94\n"
+        "77:01:0004042:2387 - кадастровый номер\n\n"
         "🏢 Юридическое лицо:\n"
-        "/inn 2540214547 – ИНН\n"
-        "1107449004464 – ОГРН или ОГРНИП\n\n"
+        "/inn 3640214547 – ИНН\n"
+        "1107462004464 – ОГРН или ОГРНИП\n\n"
         "📸 Отправьте лицо человека, чтобы попробовать найти его.",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -149,14 +149,12 @@ async def start(message: Message, state: FSMContext):
         )
     )
 
-    # 2️⃣ Отправляем форму поиска
     await message.answer(
         "Вы можете указать любое количество данных.\n"
         "Чем больше данных — тем точнее результат.",
         reply_markup=search_form_keyboard()
     )
 
-    # 3️⃣ Нижняя клавиатура
     await message.answer(
         "Форма поиска готова 👇",
         reply_markup=bottom_keyboard()
@@ -198,27 +196,18 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
 
     elif data == "top_up":
         fsm_data = await state.get_data()
-        balance = fsm_data.get("balance", 0) + 100  # пример пополнения
+        balance = fsm_data.get("balance", 0) + 100
         await state.update_data(balance=balance)
-        await callback.answer(f"Баланс пополнен на 100 ₽ ✅", show_alert=True)
+        await callback.answer("Баланс пополнен на 100 ₽ ✅", show_alert=True)
 
     elif data == "buy_requests":
         fsm_data = await state.get_data()
-        search_count = fsm_data.get("search_count", 0) + 1  # пример покупки запроса
+        search_count = fsm_data.get("search_count", 0) + 1
         await state.update_data(search_count=search_count)
         await callback.answer("Вы купили 1 запрос ✅", show_alert=True)
 
     else:
         await callback.answer(f"Вы нажали: {data}", show_alert=True)
-
-
-@router.message(lambda m: m.text == "⬅️ Назад к поиску")
-async def back_to_search(message: Message, state: FSMContext):
-    await state.set_state(SearchState.form)
-    await message.answer(
-        "Возвращаемся к форме поиска 👇",
-        reply_markup=search_form_keyboard()
-    )
 
 
 @router.message(lambda m: m.text == "🗑 Сбросить")
@@ -233,8 +222,7 @@ async def reset_form(message: Message):
 async def search_stub(message: Message):
     await message.answer(
         "🔍 Поиск запущен...\n\n"
-        "⚠️ Пока это заглушка.\n"
-        "Логика поиска будет подключена дальше."
+        "⚠️ Пока это заглушка."
     )
 
 
