@@ -18,7 +18,6 @@ from datetime import datetime
 # ------------------ CONFIG ------------------
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не найден в переменных окружения")
 
@@ -30,47 +29,44 @@ class SearchState(StatesGroup):
 # ------------------ KEYBOARDS ------------------
 
 def bottom_keyboard():
+    # Всегда только 2 кнопки под строкой ввода
     return ReplyKeyboardMarkup(
         keyboard=[
-            [
-                KeyboardButton(text="📂 Показать меню"),
-                KeyboardButton(text="👤 Выбрать пользователя"),
-            ]
+            [KeyboardButton(text="📂 Показать меню"), KeyboardButton(text="👤 Выбрать пользователя")]
         ],
         resize_keyboard=True
     )
 
 
 def search_form_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
             [
-                KeyboardButton(text="Фамилия"),
-                KeyboardButton(text="Имя"),
-                KeyboardButton(text="Отчество"),
+                InlineKeyboardButton(text="Фамилия", callback_data="input_surname"),
+                InlineKeyboardButton(text="Имя", callback_data="input_name"),
+                InlineKeyboardButton(text="Отчество", callback_data="input_patronymic"),
             ],
             [
-                KeyboardButton(text="День"),
-                KeyboardButton(text="Месяц"),
-                KeyboardButton(text="Год"),
+                InlineKeyboardButton(text="День", callback_data="input_day"),
+                InlineKeyboardButton(text="Месяц", callback_data="input_month"),
+                InlineKeyboardButton(text="Год", callback_data="input_year"),
             ],
             [
-                KeyboardButton(text="Возраст от"),
-                KeyboardButton(text="Возраст"),
-                KeyboardButton(text="Возраст до"),
+                InlineKeyboardButton(text="Возраст от", callback_data="input_age_from"),
+                InlineKeyboardButton(text="Возраст", callback_data="input_age"),
+                InlineKeyboardButton(text="Возраст до", callback_data="input_age_to"),
             ],
             [
-                KeyboardButton(text="Место рождения"),
+                InlineKeyboardButton(text="Место рождения", callback_data="input_birthplace")
             ],
             [
-                KeyboardButton(text="Страна"),
+                InlineKeyboardButton(text="Страна", callback_data="input_country")
             ],
             [
-                KeyboardButton(text="🗑 Сбросить"),
-                KeyboardButton(text="🔍 Искать"),
+                InlineKeyboardButton(text="🗑 Сбросить", callback_data="reset_form"),
+                InlineKeyboardButton(text="🔍 Искать", callback_data="search_data")
             ]
-        ],
-        resize_keyboard=True
+        ]
     )
 
 
@@ -107,11 +103,11 @@ router = Router()
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.set_state(SearchState.form)
-    # инициализация динамических данных
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    # инициализация данных пользователя
     await state.update_data(balance=0, search_count=0, referral_balance=0, registration_date=now, agent_duration="6 мес., 16 дн.")
 
-    # стартовый текст
+    # Основное сообщение профиля
     await message.answer(
         "🕵️ Личность:\n"
         "Иванов Иван Иванович 04.06.1976 - ФИО\n\n"
@@ -123,7 +119,6 @@ async def start(message: Message, state: FSMContext):
         "XTA211550C5106724 – VIN автомобиля\n\n"
         "💬 Социальные сети:\n"
         "vk.com/Blindaglaz – Вконтакте\n"
-        "tiktok.com/@Blindaglaz – Tiktok\n"
         "instagram.com/Blindaglazk – Instagram\n"
         "ok.ru/profile/69460 – Одноклассники\n\n"
         "📟 Telegram:\n"
@@ -155,24 +150,11 @@ async def start(message: Message, state: FSMContext):
         )
     )
 
-    # инструкция к форме поиска
-    await message.answer(
-        "Вы можете указать любое количество данных.\n"
-        "Чем больше данных — тем точнее результат.",
-        reply_markup=search_form_keyboard()
-    )
-
-    await message.answer(
-        "Форма поиска готова 👇",
-        reply_markup=bottom_keyboard()
-    )
-
 # ------------------ CALLBACK HANDLER ------------------
 
 @router.callback_query(lambda c: True)
 async def callback_handler(callback: CallbackQuery, state: FSMContext):
     data = callback.data
-
     fsm_data = await state.get_data()
     balance = fsm_data.get("balance", 0)
     search_count = fsm_data.get("search_count", 0)
@@ -183,9 +165,11 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
     if data == "partial_search":
         await state.set_state(SearchState.form)
         await callback.message.delete()
+        # Сообщение инструкции + 13 кнопок
         await callback.message.answer(
-            "Вы можете указать любое количество данных: фамилию, имя, отчество, дату или год рождения, возраст, место рождения и т. д.\n\n"
-            "Достаточно заполнить то, что у вас есть — все поля необязательны.",
+            "Вы можете указать любое количество данных.\n"
+            "Чем больше данных — тем точнее результат.\n\n"
+            "Форма поиска готова 👇",
             reply_markup=search_form_keyboard()
         )
         await callback.answer()
