@@ -2,7 +2,7 @@ import asyncio
 import os
 
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -65,16 +65,32 @@ def search_form_keyboard():
 
 
 def profile_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="💰 Пополнить баланс")],
-            [KeyboardButton(text="🔍 Купить запросы")],
-            [KeyboardButton(text="👁 Отслеживание")],
-            [KeyboardButton(text="🚫 Скрытие данных")],
-            [KeyboardButton(text="🎩 Связаться с нами")],
-            [KeyboardButton(text="⬅️ Назад к поиску")],
-        ],
-        resize_keyboard=True
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            # Первая строка: Пополнить / Купить запросы
+            [
+                InlineKeyboardButton(text="💰 Пополнить", callback_data="top_up"),
+                InlineKeyboardButton(text="🔍 Купить запросы", callback_data="buy_requests")
+            ],
+            # Вторая строка: Скрытие данных
+            [
+                InlineKeyboardButton(text="🚫 Скрытие данных", callback_data="hide_data")
+            ],
+            # Третья строка: Отслеживание
+            [
+                InlineKeyboardButton(text="👁 Отслеживание", callback_data="tracking")
+            ],
+            # Четвертая строка: Связаться с нами
+            [
+                InlineKeyboardButton(text="🎩 Связаться с нами", callback_data="contact")
+            ],
+            # Пятая строка: Назад / Настройки / Обновить
+            [
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="back"),
+                InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings"),
+                InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh")
+            ]
+        ]
     )
 
 # ------------------ ROUTER ------------------
@@ -107,8 +123,23 @@ async def show_profile(message: Message):
         "Реферальный баланс: 0 ₽\n"
         "Дата регистрации: —",
         parse_mode="Markdown",
-        reply_markup=profile_keyboard()
+        reply_markup=profile_keyboard()  # <- теперь inline
     )
+
+
+@router.callback_query(lambda c: True)  # обработка всех inline кнопок
+async def callback_handler(callback: CallbackQuery):
+    data = callback.data
+    if data == "back":
+        # возвращаемся к форме поиска
+        await callback.message.edit_reply_markup(None)  # убираем inline клавиатуру
+        await callback.message.answer(
+            "Возвращаемся к форме поиска 👇",
+            reply_markup=search_form_keyboard()
+        )
+    else:
+        # временная заглушка для остальных кнопок
+        await callback.answer(f"Вы нажали: {data}", show_alert=True)
 
 
 @router.message(lambda m: m.text == "⬅️ Назад к поиску")
