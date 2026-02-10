@@ -1,15 +1,7 @@
 import asyncio
 import os
-
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import (
-    Message,
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    CallbackQuery
-)
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -25,11 +17,11 @@ if not BOT_TOKEN:
 
 class SearchState(StatesGroup):
     form = State()
+    current_input = State()  # Для ввода конкретного поля
 
 # ------------------ KEYBOARDS ------------------
 
 def bottom_keyboard():
-    # Всегда две кнопки под строкой ввода
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📂 Показать меню"), KeyboardButton(text="👤 Выбрать пользователя")]
@@ -37,30 +29,32 @@ def bottom_keyboard():
         resize_keyboard=True
     )
 
-def search_form_keyboard():
-    # Форма поиска с 13 кнопками + Назад | Сбросить | Искать внизу
+def get_search_form_keyboard(data: dict):
+    # Формируем кнопки с учётом введённых данных
+    def val_or_default(key):
+        return f"{data[key]} ✅" if key in data and data[key] else key.replace("_", " ").capitalize()
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Фамилия", callback_data="input_surname"),
-                InlineKeyboardButton(text="Имя", callback_data="input_name"),
-                InlineKeyboardButton(text="Отчество", callback_data="input_patronymic"),
+                InlineKeyboardButton(text=val_or_default("surname"), callback_data="input_surname"),
+                InlineKeyboardButton(text=val_or_default("name"), callback_data="input_name"),
+                InlineKeyboardButton(text=val_or_default("patronymic"), callback_data="input_patronymic"),
             ],
             [
-                InlineKeyboardButton(text="День", callback_data="input_day"),
-                InlineKeyboardButton(text="Месяц", callback_data="input_month"),
-                InlineKeyboardButton(text="Год", callback_data="input_year"),
+                InlineKeyboardButton(text=val_or_default("day"), callback_data="input_day"),
+                InlineKeyboardButton(text=val_or_default("month"), callback_data="input_month"),
+                InlineKeyboardButton(text=val_or_default("year"), callback_data="input_year"),
             ],
             [
-                InlineKeyboardButton(text="Возраст от", callback_data="input_age_from"),
-                InlineKeyboardButton(text="Возраст", callback_data="input_age"),
-                InlineKeyboardButton(text="Возраст до", callback_data="input_age_to"),
+                InlineKeyboardButton(text=val_or_default("age_from"), callback_data="input_age_from"),
+                InlineKeyboardButton(text=val_or_default("age"), callback_data="input_age"),
+                InlineKeyboardButton(text=val_or_default("age_to"), callback_data="input_age_to"),
             ],
             [
-                InlineKeyboardButton(text="Место рождения", callback_data="input_birthplace")
+                InlineKeyboardButton(text=val_or_default("birthplace"), callback_data="input_birthplace")
             ],
             [
-                InlineKeyboardButton(text="Страна", callback_data="input_country")
+                InlineKeyboardButton(text=val_or_default("country"), callback_data="input_country")
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_start"),
@@ -106,8 +100,6 @@ async def start(message: Message, state: FSMContext):
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     await state.update_data(balance=0, search_count=0, referral_balance=0,
                             registration_date=now, agent_duration="6 мес., 16 дн.")
-
-    # Основное сообщение профиля
     await message.answer(
         "🕵️ Личность:\n"
         "Иванов Иван Иванович 04.06.1976 - ФИО\n\n"
@@ -149,7 +141,6 @@ async def start(message: Message, state: FSMContext):
             ]
         )
     )
-    # Под строкой ввода всегда две кнопки
     await message.answer("Выберите действие ниже:", reply_markup=bottom_keyboard())
 
 # ------------------ CALLBACK HANDLER ------------------
@@ -172,16 +163,52 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
             "Вы можете указать любое количество данных.\n"
             "Чем больше данных — тем точнее результат.\n\n"
             "Форма поиска готова 👇",
-            reply_markup=search_form_keyboard()
+            reply_markup=get_search_form_keyboard(fsm_data)
         )
         await callback.answer()
-
-    # ---------- Назад из формы поиска ----------
-    elif data == "back_to_start":
+    # ---------- Ввод полей ----------
+    elif data.startswith("input_"):
+        field = data.replace("input_", "")
+        await state.set_state(SearchState.current_input)
+        await state.update_data(current_field=field)
+        await callback.message.answer(f"Введите {field.replace('_', ' ')}:", reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="cancel_input")]]
+        ))
+        await callback.answer()
+    # ---------- Отмена ввода ----------
+    elif data == "cancel_input":
+        await state.set_state(SearchState.form)
+        fsm_data = await state.get_data()
+        await callback.message.delete()
+        await callback.message.answer(
+            "Форма поиска:",
+            reply_markup=get_search_form_keyboard(fsm_data)
+        )
+        await callback.answer("Ввод отменён ✅")
+    # ---------- Назад ----------
+    elif data == "back_to_start" or data == "back":
         await callback.message.delete()
         await start(callback.message, state)
         await callback.answer()
-
+    # ---------- Сбросить форму ----------
+    elif data == "reset_form":
+        await state.update_data({
+            "surname": "", "name": "", "patronymic": "", "day": "", "month": "", "year": "",
+            "age_from": "", "age": "", "age_to": "", "birthplace": "", "country": ""
+        })
+        await state.set_state(SearchState.form)
+        await callback.message.delete()
+        await callback.message.answer(
+            "Форма очищена:",
+            reply_markup=get_search_form_keyboard({})
+        )
+        await callback.answer()
+    # ---------- Искать ----------
+    elif data == "search_data":
+        search_preview = "\n".join([f"{k}: {v}" for k,v in fsm_data.items() if v and k != "current_field"])
+        search_preview = search_preview or "⚠️ Пока ничего не введено"
+        await callback.message.answer(f"🔍 Предварительный просмотр поиска:\n{search_preview}")
+        await callback.answer()
     # ---------- Профиль ----------
     elif data == "profile":
         profile_text = (
@@ -193,12 +220,8 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
             f"(Вы агент уже: {agent_duration})"
         )
         await callback.message.delete()
-        await callback.message.answer(
-            profile_text,
-            reply_markup=profile_keyboard()
-        )
+        await callback.message.answer(profile_text, reply_markup=profile_keyboard())
         await callback.answer()
-
     # ---------- Мои боты ----------
     elif data == "my_bots":
         await callback.message.delete()
@@ -206,7 +229,6 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
             "🤖 Мои боты\n\nУ вас пока нет подключённых ботов.\nЭтот раздел скоро появится 👀"
         )
         await callback.answer()
-
     # ---------- Партнёрская программа ----------
     elif data == "partner_program":
         await callback.message.delete()
@@ -214,13 +236,6 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
             "🤝 Партнёрская программа\n\nПриглашайте друзей и получайте бонусы 💰\nРаздел находится в разработке."
         )
         await callback.answer()
-
-    # ---------- Кнопка назад в профиле ----------
-    elif data == "back":
-        await callback.message.delete()
-        await start(callback.message, state)
-        await callback.answer()
-
     # ---------- Обновление профиля ----------
     elif data == "refresh":
         profile_text = (
@@ -231,47 +246,20 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
             f"Дата регистрации: {registration_date}\n"
             f"(Вы агент уже: {agent_duration})"
         )
-        await callback.message.edit_text(
-            profile_text,
-            reply_markup=profile_keyboard()
-        )
+        await callback.message.edit_text(profile_text, reply_markup=profile_keyboard())
         await callback.answer("Профиль обновлён ✅")
-
     # ---------- Пополнение ----------
     elif data == "top_up":
         balance += 100
         await state.update_data(balance=balance)
         await callback.answer("Баланс пополнен на 100 $ ✅", show_alert=True)
-
     # ---------- Купить запросы ----------
     elif data == "buy_requests":
         search_count += 1
         await state.update_data(search_count=search_count)
         await callback.answer("Вы купили 1 запрос ✅", show_alert=True)
-
     else:
         await callback.answer(f"Вы нажали: {data}", show_alert=True)
-
-# ------------------ OTHER HANDLERS ------------------
-
-@router.message(lambda m: m.text == "🗑 Сбросить")
-async def reset_form(message: Message):
-    await message.answer(
-        "Форма очищена.",
-        reply_markup=search_form_keyboard()
-    )
-
-@router.message(lambda m: m.text == "🔍 Искать")
-async def search_stub(message: Message):
-    await message.answer(
-        "🔍 Поиск запущен...\n\n⚠️ Пока это заглушка."
-    )
-
-@router.message(SearchState.form)
-async def form_input_stub(message: Message):
-    await message.answer(
-        f"Поле «{message.text}» выбрано.\nВвод данных будет реализован позже."
-    )
 
 # ------------------ MAIN ------------------
 
