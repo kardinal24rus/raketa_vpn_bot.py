@@ -8,53 +8,49 @@ from aiogram.fsm.state import StatesGroup, State
 from datetime import datetime
 
 # ------------------ CONFIG ------------------
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не найден в переменных окружения")
 
 # ------------------ FSM ------------------
-
 class SearchState(StatesGroup):
     form = State()
     current_input = State()  # Для ввода конкретного поля
 
 # ------------------ KEYBOARDS ------------------
-
 def bottom_keyboard():
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📂 Показать меню"), KeyboardButton(text="👤 Выбрать пользователя")]
-        ],
+        keyboard=[[KeyboardButton(text="📂 Показать меню"), KeyboardButton(text="👤 Выбрать пользователя")]],
         resize_keyboard=True
     )
 
 def get_search_form_keyboard(data: dict):
-    # Формируем кнопки с учётом введённых данных
-    def val_or_default(key):
-        return f"{data[key]} ✅" if key in data and data[key] else key.replace("_", " ").capitalize()
+    # Функция для кнопок с введёнными данными
+    def val_or_default(key, default_name):
+        return f"{data[key]} ✅" if key in data and data[key] else default_name
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=val_or_default("surname"), callback_data="input_surname"),
-                InlineKeyboardButton(text=val_or_default("name"), callback_data="input_name"),
-                InlineKeyboardButton(text=val_or_default("patronymic"), callback_data="input_patronymic"),
+                InlineKeyboardButton(text=val_or_default("surname","Фамилия"), callback_data="input_surname"),
+                InlineKeyboardButton(text=val_or_default("name","Имя"), callback_data="input_name"),
+                InlineKeyboardButton(text=val_or_default("patronymic","Отчество"), callback_data="input_patronymic"),
             ],
             [
-                InlineKeyboardButton(text=val_or_default("day"), callback_data="input_day"),
-                InlineKeyboardButton(text=val_or_default("month"), callback_data="input_month"),
-                InlineKeyboardButton(text=val_or_default("year"), callback_data="input_year"),
+                InlineKeyboardButton(text=val_or_default("day","День"), callback_data="input_day"),
+                InlineKeyboardButton(text=val_or_default("month","Месяц"), callback_data="input_month"),
+                InlineKeyboardButton(text=val_or_default("year","Год"), callback_data="input_year"),
             ],
             [
-                InlineKeyboardButton(text=val_or_default("age_from"), callback_data="input_age_from"),
-                InlineKeyboardButton(text=val_or_default("age"), callback_data="input_age"),
-                InlineKeyboardButton(text=val_or_default("age_to"), callback_data="input_age_to"),
+                InlineKeyboardButton(text=val_or_default("age_from","Возраст от"), callback_data="input_age_from"),
+                InlineKeyboardButton(text=val_or_default("age","Возраст"), callback_data="input_age"),
+                InlineKeyboardButton(text=val_or_default("age_to","Возраст до"), callback_data="input_age_to"),
             ],
             [
-                InlineKeyboardButton(text=val_or_default("birthplace"), callback_data="input_birthplace")
+                InlineKeyboardButton(text=val_or_default("birthplace","Место рождения"), callback_data="input_birthplace")
             ],
             [
-                InlineKeyboardButton(text=val_or_default("country"), callback_data="input_country")
+                InlineKeyboardButton(text=val_or_default("country","Страна"), callback_data="input_country")
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_start"),
@@ -89,11 +85,9 @@ def profile_keyboard():
     )
 
 # ------------------ ROUTER ------------------
-
 router = Router()
 
 # ------------------ HANDLERS ------------------
-
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.set_state(SearchState.form)
@@ -101,34 +95,15 @@ async def start(message: Message, state: FSMContext):
     await state.update_data(balance=0, search_count=0, referral_balance=0,
                             registration_date=now, agent_duration="6 мес., 16 дн.")
     await message.answer(
-        "🕵️ Личность:\n"
-        "Иванов Иван Иванович 04.06.1976 - ФИО\n\n"
-        "📲 Контакты:\n"
-        "79999688666 – номер телефона\n"
-        "79999688666@mail.ru – email\n\n"
-        "🚘 Транспорт:\n"
-        "В777ОК199 – номер автомобиля\n"
-        "XTA211550C5106724 – VIN автомобиля\n\n"
-        "💬 Социальные сети:\n"
-        "vk.com/Blindaglaz – Вконтакте\n"
-        "instagram.com/Blindaglazk – Instagram\n"
-        "ok.ru/profile/69460 – Одноклассники\n\n"
-        "📟 Telegram:\n"
-        "@@blindaglaz_bot , tg123456 – логин или ID\n\n"
-        "📄 Документы:\n"
-        "/vu 1234567890 – водительские права\n"
-        "/passport 1234567890 – паспорт\n"
-        "/snils 12345678901 – СНИЛС\n"
-        "/inn 123456789012 – ИНН\n\n"
-        "🌐 Онлайн-следы:\n"
-        "/tag хирург москва – поиск по телефонным книгам\n"
-        "blindaglaz.com или 1.1.1.1 – домен или IP\n\n"
-        "🏚 Недвижимость:\n"
-        "/adr Владивосток, Островская, 9, 94\n"
-        "77:01:0004042:2387 - кадастровый номер\n\n"
-        "🏢 Юридическое лицо:\n"
-        "/inn 3640214547 – ИНН\n"
-        "1107462004464 – ОГРН или ОГРНИП\n\n"
+        "🕵️ Личность:\nИванов Иван Иванович 04.06.1976 - ФИО\n\n"
+        "📲 Контакты:\n79999688666 – номер телефона\n79999688666@mail.ru – email\n\n"
+        "🚘 Транспорт:\nВ777ОК199 – номер автомобиля\nXTA211550C5106724 – VIN автомобиля\n\n"
+        "💬 Социальные сети:\nvk.com/Blindaglaz – Вконтакте\ninstagram.com/Blindaglazk – Instagram\nok.ru/profile/69460 – Одноклассники\n\n"
+        "📟 Telegram:\n@@blindaglaz_bot , tg123456 – логин или ID\n\n"
+        "📄 Документы:\n/vu 1234567890 – водительские права\n/passport 1234567890 – паспорт\n/snils 12345678901 – СНИЛС\n/inn 123456789012 – ИНН\n\n"
+        "🌐 Онлайн-следы:\n/tag хирург москва – поиск по телефонным книгам\nblindaglaz.com или 1.1.1.1 – домен или IP\n\n"
+        "🏚 Недвижимость:\n/adr Владивосток, Островская, 9, 94\n77:01:0004042:2387 - кадастровый номер\n\n"
+        "🏢 Юридическое лицо:\n/inn 3640214547 – ИНН\n1107462004464 – ОГРН или ОГРНИП\n\n"
         "📸 Отправьте лицо человека, чтобы попробовать найти его.",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -144,7 +119,6 @@ async def start(message: Message, state: FSMContext):
     await message.answer("Выберите действие ниже:", reply_markup=bottom_keyboard())
 
 # ------------------ CALLBACK HANDLER ------------------
-
 @router.callback_query(lambda c: True)
 async def callback_handler(callback: CallbackQuery, state: FSMContext):
     data = callback.data
@@ -160,36 +134,35 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
         await state.set_state(SearchState.form)
         await callback.message.delete()
         await callback.message.answer(
-            "Вы можете указать любое количество данных.\n"
-            "Чем больше данных — тем точнее результат.\n\n"
-            "Форма поиска готова 👇",
+            "Вы можете указать любое количество данных.\nЧем больше данных — тем точнее результат.\n\nФорма поиска готова 👇",
             reply_markup=get_search_form_keyboard(fsm_data)
         )
         await callback.answer()
+
     # ---------- Ввод полей ----------
     elif data.startswith("input_"):
         field = data.replace("input_", "")
         await state.set_state(SearchState.current_input)
         await state.update_data(current_field=field)
-        await callback.message.answer(f"Введите {field.replace('_', ' ')}:", reply_markup=InlineKeyboardMarkup(
+        await callback.message.answer(f"Введите {field.replace('_',' ')}:", reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="cancel_input")]]
         ))
         await callback.answer()
+
     # ---------- Отмена ввода ----------
     elif data == "cancel_input":
         await state.set_state(SearchState.form)
         fsm_data = await state.get_data()
         await callback.message.delete()
-        await callback.message.answer(
-            "Форма поиска:",
-            reply_markup=get_search_form_keyboard(fsm_data)
-        )
+        await callback.message.answer("Форма поиска:", reply_markup=get_search_form_keyboard(fsm_data))
         await callback.answer("Ввод отменён ✅")
+
     # ---------- Назад ----------
     elif data == "back_to_start" or data == "back":
         await callback.message.delete()
         await start(callback.message, state)
         await callback.answer()
+
     # ---------- Сбросить форму ----------
     elif data == "reset_form":
         await state.update_data({
@@ -198,71 +171,61 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
         })
         await state.set_state(SearchState.form)
         await callback.message.delete()
-        await callback.message.answer(
-            "Форма очищена:",
-            reply_markup=get_search_form_keyboard({})
-        )
+        await callback.message.answer("Форма очищена:", reply_markup=get_search_form_keyboard({}))
         await callback.answer()
+
     # ---------- Искать ----------
     elif data == "search_data":
-        search_preview = "\n".join([f"{k}: {v}" for k,v in fsm_data.items() if v and k != "current_field"])
-        search_preview = search_preview or "⚠️ Пока ничего не введено"
-        await callback.message.answer(f"🔍 Предварительный просмотр поиска:\n{search_preview}")
+        preview = "\n".join([f"{k.replace('_',' ').capitalize()}: {v}" for k,v in fsm_data.items() if v and k!="current_field"])
+        preview = preview or "⚠️ Пока ничего не введено"
+        await callback.message.answer(f"🔍 Предварительный просмотр поиска:\n{preview}")
         await callback.answer()
+
     # ---------- Профиль ----------
     elif data == "profile":
-        profile_text = (
-            f"Ваш ID: {callback.from_user.id}\n\n"
-            f"Доступно поисков: {search_count}\n"
-            f"Ваш баланс: ${balance:.2f}\n"
-            f"Реферальный баланс: ${referral_balance:.2f}\n"
-            f"Дата регистрации: {registration_date}\n"
-            f"(Вы агент уже: {agent_duration})"
-        )
+        profile_text = (f"Ваш ID: {callback.from_user.id}\n\nДоступно поисков: {search_count}\n"
+                        f"Ваш баланс: ${balance:.2f}\nРеферальный баланс: ${referral_balance:.2f}\n"
+                        f"Дата регистрации: {registration_date}\n(Вы агент уже: {agent_duration})")
         await callback.message.delete()
         await callback.message.answer(profile_text, reply_markup=profile_keyboard())
         await callback.answer()
+
     # ---------- Мои боты ----------
     elif data == "my_bots":
         await callback.message.delete()
-        await callback.message.answer(
-            "🤖 Мои боты\n\nУ вас пока нет подключённых ботов.\nЭтот раздел скоро появится 👀"
-        )
+        await callback.message.answer("🤖 Мои боты\n\nУ вас пока нет подключённых ботов.\nЭтот раздел скоро появится 👀")
         await callback.answer()
+
     # ---------- Партнёрская программа ----------
     elif data == "partner_program":
         await callback.message.delete()
-        await callback.message.answer(
-            "🤝 Партнёрская программа\n\nПриглашайте друзей и получайте бонусы 💰\nРаздел находится в разработке."
-        )
+        await callback.message.answer("🤝 Партнёрская программа\n\nПриглашайте друзей и получайте бонусы 💰\nРаздел находится в разработке.")
         await callback.answer()
+
     # ---------- Обновление профиля ----------
     elif data == "refresh":
-        profile_text = (
-            f"Ваш ID: {callback.from_user.id}\n\n"
-            f"Доступно поисков: {search_count}\n"
-            f"Ваш баланс: ${balance:.2f}\n"
-            f"Реферальный баланс: ${referral_balance:.2f}\n"
-            f"Дата регистрации: {registration_date}\n"
-            f"(Вы агент уже: {agent_duration})"
-        )
+        profile_text = (f"Ваш ID: {callback.from_user.id}\n\nДоступно поисков: {search_count}\n"
+                        f"Ваш баланс: ${balance:.2f}\nРеферальный баланс: ${referral_balance:.2f}\n"
+                        f"Дата регистрации: {registration_date}\n(Вы агент уже: {agent_duration})")
         await callback.message.edit_text(profile_text, reply_markup=profile_keyboard())
         await callback.answer("Профиль обновлён ✅")
+
     # ---------- Пополнение ----------
     elif data == "top_up":
         balance += 100
         await state.update_data(balance=balance)
         await callback.answer("Баланс пополнен на 100 $ ✅", show_alert=True)
+
     # ---------- Купить запросы ----------
     elif data == "buy_requests":
         search_count += 1
         await state.update_data(search_count=search_count)
         await callback.answer("Вы купили 1 запрос ✅", show_alert=True)
+
     else:
         await callback.answer(f"Вы нажали: {data}", show_alert=True)
 
 # ------------------ MAIN ------------------
-
 async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
