@@ -16,7 +16,7 @@ if not BOT_TOKEN:
 class SearchState(StatesGroup):
     language_selection = State()
     form = State()
-    current_input = State()  # Для ввода конкретного поля
+    current_input = State()
 
 # ------------------ TRANSLATIONS ------------------
 translations = {
@@ -32,25 +32,11 @@ translations = {
         "search_preview": "🔍 Предварительный просмотр поиска:",
         "partial_search": "Вы можете указать любое количество данных.\nЧем больше данных — тем точнее результат.\n\nФорма поиска готова 👇",
         "language_prompt": "Выберите язык / Choose language:",
-    },
-    "en": {
-        "surname": "Surname", "name": "Name", "patronymic": "Patronymic",
-        "day": "Day", "month": "Month", "year": "Year",
-        "age_from": "Age from", "age": "Age", "age_to": "Age to",
-        "birthplace": "Birthplace", "country": "Country",
-        "back": "⬅️ Back", "reset": "🗑 Reset", "search": "🔍 Search",
-        "cancel": "Cancel",
-        "input_prompt": "Enter {field}:",
-        "form_cleared": "Form cleared:",
-        "search_preview": "🔍 Search preview:",
-        "partial_search": "You can fill any number of fields.\nThe more data — the more accurate the results.\n\nSearch form ready 👇",
-        "language_prompt": "Выберите язык / Choose language:",
     }
 }
 
 languages_flags = [
     ("🇷🇺 Русский", "ru"),
-    ("🇺🇸 English", "en"),
 ]
 
 # ------------------ KEYBOARDS ------------------
@@ -60,10 +46,9 @@ def bottom_keyboard():
         resize_keyboard=True
     )
 
-def get_search_form_keyboard(data: dict, lang="ru"):
-    tr = translations[lang]
+def get_search_form_keyboard(data: dict):
     def val_or_default(key):
-        return f"{data[key]} ✅" if key in data and data[key] else tr.get(key, key)
+        return f"{data[key]} ✅" if key in data and data[key] else translations["ru"].get(key, key)
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -88,9 +73,9 @@ def get_search_form_keyboard(data: dict, lang="ru"):
                 InlineKeyboardButton(text=val_or_default("country"), callback_data="input_country")
             ],
             [
-                InlineKeyboardButton(text=tr["back"], callback_data="back_to_start"),
-                InlineKeyboardButton(text=tr["reset"], callback_data="reset_form"),
-                InlineKeyboardButton(text=tr["search"], callback_data="search_data")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_start"),
+                InlineKeyboardButton(text="🗑 Сбросить", callback_data="reset_form"),
+                InlineKeyboardButton(text="🔍 Искать", callback_data="search_data")
             ]
         ]
     )
@@ -119,15 +104,6 @@ def profile_keyboard():
         ]
     )
 
-def language_keyboard():
-    buttons = []
-    for i in range(0, len(languages_flags), 2):
-        row = [InlineKeyboardButton(text=languages_flags[i][0], callback_data=f"lang_{languages_flags[i][1]}")]
-        if i+1 < len(languages_flags):
-            row.append(InlineKeyboardButton(text=languages_flags[i+1][0], callback_data=f"lang_{languages_flags[i+1][1]}"))
-        buttons.append(row)
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
 # ------------------ ROUTER ------------------
 router = Router()
 
@@ -137,12 +113,13 @@ async def start(message: Message, state: FSMContext):
     data = await state.get_data()
     if "language" not in data:
         await state.set_state(SearchState.language_selection)
-        await message.answer(translations["ru"]["language_prompt"], reply_markup=language_keyboard())
+        await message.answer(translations["ru"]["language_prompt"], reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text=languages_flags[0][0], callback_data=f"lang_{languages_flags[0][1]}")]]
+        ))
     else:
-        await show_start_content(message, state, data["language"])
+        await show_start_content(message, state)
 
-async def show_start_content(message: Message, state: FSMContext, lang="ru"):
-    tr = translations[lang]
+async def show_start_content(message: Message, state: FSMContext):
     await state.set_state(SearchState.form)
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     await state.update_data(balance=0, search_count=0, referral_balance=0, registration_date=now, agent_duration="6 мес., 16 дн.")
@@ -173,30 +150,80 @@ async def show_start_content(message: Message, state: FSMContext, lang="ru"):
 async def callback_handler(callback: CallbackQuery, state: FSMContext):
     data = callback.data
     fsm_data = await state.get_data()
-    lang = fsm_data.get("language", "ru")
-    tr = translations[lang]
-
-    balance = fsm_data.get("balance", 0)
-    search_count = fsm_data.get("search_count", 0)
-    registration_date = fsm_data.get("registration_date", "—")
-    agent_duration = fsm_data.get("agent_duration", "—")
 
     # ---------- Выбор языка ----------
     if data.startswith("lang_"):
-        selected_lang = data.replace("lang_","")
-        await state.update_data(language=selected_lang)
+        await state.update_data(language=data.replace("lang_", ""))
         await callback.message.delete()
-        await show_start_content(callback.message, state, selected_lang)
+        await show_start_content(callback.message, state)
         await callback.answer()
         return
 
-    # ---------- Далее вставляем все старые callback из твоего рабочего кода ----------
-    # Здесь остаётся полностью рабочий функционал: partial_search, input_xxx, cancel_input, back, reset, search_data, profile, my_bots, partner_program, refresh, top_up, buy_requests
+    # ---------- Поиск по неполным данным ----------
+    if data == "partial_search":
+        await state.set_state(SearchState.form)
+        await callback.message.delete()
+        await callback.message.answer(translations["ru"]["partial_search"], reply_markup=get_search_form_keyboard(fsm_data))
+        await callback.answer()
+        return
 
-    # !!! Важно: здесь код оставляем как есть из твоего рабочего кода
-    # Это место нужно будет просто вставить, чтобы всё работало без изменений
+    # ---------- Ввод конкретного поля ----------
+    if data.startswith("input_"):
+        field = data.replace("input_", "")
+        await state.set_state(SearchState.current_input)
+        await state.update_data(current_field=field)
+        await callback.message.answer(translations["ru"]["input_prompt"].format(field=translations["ru"].get(field, field)),
+                                      reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=translations["ru"]["cancel"], callback_data="cancel_input")]]))
+        await callback.answer()
+        return
 
-    await callback.answer(f"Вы нажали: {data}", show_alert=True)
+    # ---------- Отмена ввода ----------
+    if data == "cancel_input":
+        await state.set_state(SearchState.form)
+        fsm_data = await state.get_data()
+        await callback.message.delete()
+        await callback.message.answer("Форма поиска:", reply_markup=get_search_form_keyboard(fsm_data))
+        await callback.answer("Ввод отменён ✅")
+        return
+
+    # ---------- Назад ----------
+    if data == "back_to_start" or data == "back":
+        await callback.message.delete()
+        await show_start_content(callback.message, state)
+        await callback.answer()
+        return
+
+    # ---------- Сбросить форму ----------
+    if data == "reset_form":
+        await state.update_data({k:"" for k in ["surname","name","patronymic","day","month","year","age_from","age","age_to","birthplace","country"]})
+        await state.set_state(SearchState.form)
+        await callback.message.delete()
+        await callback.message.answer("Форма очищена:", reply_markup=get_search_form_keyboard({}))
+        await callback.answer()
+        return
+
+    # ---------- Искать ----------
+    if data == "search_data":
+        search_preview = "\n".join([f"{k}: {v}" for k,v in fsm_data.items() if v and k != "current_field"])
+        search_preview = search_preview or "⚠️ Пока ничего не введено"
+        await callback.message.answer(f"🔍 Предварительный просмотр поиска:\n{search_preview}")
+        await callback.answer()
+        return
+
+    # ---------- Профиль ----------
+    if data == "profile":
+        profile_text = (
+            f"Ваш ID: {callback.from_user.id}\n\n"
+            f"Доступно поисков: {fsm_data.get('search_count',0)}\n"
+            f"Ваш баланс: ${fsm_data.get('balance',0):.2f}\n"
+            f"Реферальный баланс: ${fsm_data.get('referral_balance',0):.2f}\n"
+            f"Дата регистрации: {fsm_data.get('registration_date','—')}\n"
+            f"(Вы агент уже: {fsm_data.get('agent_duration','—')})"
+        )
+        await callback.message.delete()
+        await callback.message.answer(profile_text, reply_markup=profile_keyboard())
+        await callback.answer()
+        return
 
 # ------------------ MAIN ------------------
 async def main():
