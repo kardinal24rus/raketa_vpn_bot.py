@@ -13,6 +13,7 @@ from aiogram.types import (
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+from datetime import datetime
 
 # ------------------ CONFIG ------------------
 
@@ -62,8 +63,10 @@ def search_form_keyboard():
                 KeyboardButton(text="Место рождения"),
             ],
             [
+                KeyboardButton(text="Страна"),
+            ],
+            [
                 KeyboardButton(text="🗑 Сбросить"),
-                KeyboardButton(text="🇷🇺"),
                 KeyboardButton(text="🔍 Искать"),
             ]
         ],
@@ -79,10 +82,10 @@ def profile_keyboard():
                 InlineKeyboardButton(text="🔍 Купить запросы", callback_data="buy_requests")
             ],
             [
-                InlineKeyboardButton(text="🚫 Скрытие данных", callback_data="hide_data")
+                InlineKeyboardButton(text="🚫 Скрытие данных из поиска", callback_data="hide_data")
             ],
             [
-                InlineKeyboardButton(text="👁 Отслеживание", callback_data="tracking")
+                InlineKeyboardButton(text="👁 Отслеживание поисков", callback_data="tracking")
             ],
             [
                 InlineKeyboardButton(text="🎩 Связаться с нами", callback_data="contact")
@@ -104,8 +107,11 @@ router = Router()
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.set_state(SearchState.form)
-    await state.update_data(balance=0, search_count=0, referral_balance=0)
+    # инициализация динамических данных
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    await state.update_data(balance=0, search_count=0, referral_balance=0, registration_date=now, agent_duration="6 мес., 16 дн.")
 
+    # стартовый текст
     await message.answer(
         "🕵️ Личность:\n"
         "Иванов Иван Иванович 04.06.1976 - ФИО\n\n"
@@ -149,6 +155,7 @@ async def start(message: Message, state: FSMContext):
         )
     )
 
+    # инструкция к форме поиска
     await message.answer(
         "Вы можете указать любое количество данных.\n"
         "Чем больше данных — тем точнее результат.",
@@ -160,55 +167,92 @@ async def start(message: Message, state: FSMContext):
         reply_markup=bottom_keyboard()
     )
 
+# ------------------ CALLBACK HANDLER ------------------
 
 @router.callback_query(lambda c: True)
 async def callback_handler(callback: CallbackQuery, state: FSMContext):
     data = callback.data
 
-    if data == "back":
-        await callback.message.edit_reply_markup(None)
+    fsm_data = await state.get_data()
+    balance = fsm_data.get("balance", 0)
+    search_count = fsm_data.get("search_count", 0)
+    referral_balance = fsm_data.get("referral_balance", 0)
+    registration_date = fsm_data.get("registration_date", "—")
+    agent_duration = fsm_data.get("agent_duration", "—")
+
+    if data == "partial_search":
+        await state.set_state(SearchState.form)
+        await callback.message.delete()
+        await callback.message.answer(
+            "Вы можете указать любое количество данных: фамилию, имя, отчество, дату или год рождения, возраст, место рождения и т. д.\n\n"
+            "Достаточно заполнить то, что у вас есть — все поля необязательны.",
+            reply_markup=search_form_keyboard()
+        )
+        await callback.answer()
+
+    elif data == "profile":
+        profile_text = (
+            f"Ваш ID: {callback.from_user.id}\n\n"
+            f"Доступно поисков: {search_count}\n"
+            f"Ваш баланс: ${balance:.2f}\n"
+            f"Реферальный баланс: ${referral_balance:.2f}\n"
+            f"Дата регистрации: {registration_date}\n"
+            f"(Вы агент уже: {agent_duration})"
+        )
+        await callback.message.answer(
+            profile_text,
+            reply_markup=profile_keyboard()
+        )
+        await callback.answer()
+
+    elif data == "my_bots":
+        await callback.message.answer(
+            "🤖 Мои боты\n\nУ вас пока нет подключённых ботов.\nЭтот раздел скоро появится 👀"
+        )
+        await callback.answer()
+
+    elif data == "partner_program":
+        await callback.message.answer(
+            "🤝 Партнёрская программа\n\nПриглашайте друзей и получайте бонусы 💰\nРаздел находится в разработке."
+        )
+        await callback.answer()
+
+    elif data == "back":
         await callback.message.answer(
             "Возвращаемся к форме поиска 👇",
             reply_markup=search_form_keyboard()
         )
+        await callback.answer()
 
     elif data == "refresh":
-        fsm_data = await state.get_data()
-        balance = fsm_data.get("balance", 0)
-        search_count = fsm_data.get("search_count", 0)
-        referral_balance = fsm_data.get("referral_balance", 0)
-
         profile_text = (
-            f"👤 *Ваш профиль*\n\n"
-            f"ID: `{callback.from_user.id}`\n"
+            f"Ваш ID: {callback.from_user.id}\n\n"
             f"Доступно поисков: {search_count}\n"
-            f"Баланс: {balance} ₽\n"
-            f"Реферальный баланс: {referral_balance} ₽\n"
-            "Дата регистрации: —"
+            f"Ваш баланс: ${balance:.2f}\n"
+            f"Реферальный баланс: ${referral_balance:.2f}\n"
+            f"Дата регистрации: {registration_date}\n"
+            f"(Вы агент уже: {agent_duration})"
         )
-
         await callback.message.edit_text(
             profile_text,
-            parse_mode="Markdown",
             reply_markup=profile_keyboard()
         )
-        await callback.answer("Профиль обновлён ✅", show_alert=False)
+        await callback.answer("Профиль обновлён ✅")
 
     elif data == "top_up":
-        fsm_data = await state.get_data()
-        balance = fsm_data.get("balance", 0) + 100
+        balance += 100
         await state.update_data(balance=balance)
-        await callback.answer("Баланс пополнен на 100 ₽ ✅", show_alert=True)
+        await callback.answer("Баланс пополнен на 100 $ ✅", show_alert=True)
 
     elif data == "buy_requests":
-        fsm_data = await state.get_data()
-        search_count = fsm_data.get("search_count", 0) + 1
+        search_count += 1
         await state.update_data(search_count=search_count)
         await callback.answer("Вы купили 1 запрос ✅", show_alert=True)
 
     else:
         await callback.answer(f"Вы нажали: {data}", show_alert=True)
 
+# ------------------ OTHER HANDLERS ------------------
 
 @router.message(lambda m: m.text == "🗑 Сбросить")
 async def reset_form(message: Message):
@@ -221,16 +265,14 @@ async def reset_form(message: Message):
 @router.message(lambda m: m.text == "🔍 Искать")
 async def search_stub(message: Message):
     await message.answer(
-        "🔍 Поиск запущен...\n\n"
-        "⚠️ Пока это заглушка."
+        "🔍 Поиск запущен...\n\n⚠️ Пока это заглушка."
     )
 
 
 @router.message(SearchState.form)
 async def form_input_stub(message: Message):
     await message.answer(
-        f"Поле «{message.text}» выбрано.\n"
-        "Ввод данных будет реализован позже."
+        f"Поле «{message.text}» выбрано.\nВвод данных будет реализован позже."
     )
 
 # ------------------ MAIN ------------------
