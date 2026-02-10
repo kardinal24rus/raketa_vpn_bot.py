@@ -101,7 +101,10 @@ router = Router()
 
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
+    # Инициализация дефолтных данных профиля
     await state.set_state(SearchState.form)
+    await state.update_data(balance=0, search_count=0, referral_balance=0)
+
     await message.answer(
         "Вы можете указать любое количество данных.\n"
         "Чем больше данных — тем точнее результат.",
@@ -114,31 +117,74 @@ async def start(message: Message, state: FSMContext):
 
 
 @router.message(lambda m: m.text == "📂 Показать меню")
-async def show_profile(message: Message):
-    await message.answer(
-        "👤 *Ваш профиль*\n\n"
+async def show_profile(message: Message, state: FSMContext):
+    data = await state.get_data()
+    balance = data.get("balance", 0)
+    search_count = data.get("search_count", 0)
+    referral_balance = data.get("referral_balance", 0)
+
+    profile_text = (
+        f"👤 *Ваш профиль*\n\n"
         f"ID: `{message.from_user.id}`\n"
-        "Доступно поисков: 0\n"
-        "Баланс: 0 ₽\n"
-        "Реферальный баланс: 0 ₽\n"
-        "Дата регистрации: —",
+        f"Доступно поисков: {search_count}\n"
+        f"Баланс: {balance} ₽\n"
+        f"Реферальный баланс: {referral_balance} ₽\n"
+        "Дата регистрации: —"
+    )
+
+    await message.answer(
+        profile_text,
         parse_mode="Markdown",
-        reply_markup=profile_keyboard()  # <- теперь inline
+        reply_markup=profile_keyboard()
     )
 
 
-@router.callback_query(lambda c: True)  # обработка всех inline кнопок
-async def callback_handler(callback: CallbackQuery):
+@router.callback_query(lambda c: True)
+async def callback_handler(callback: CallbackQuery, state: FSMContext):
     data = callback.data
+
     if data == "back":
-        # возвращаемся к форме поиска
-        await callback.message.edit_reply_markup(None)  # убираем inline клавиатуру
+        await callback.message.edit_reply_markup(None)
         await callback.message.answer(
             "Возвращаемся к форме поиска 👇",
             reply_markup=search_form_keyboard()
         )
+
+    elif data == "refresh":
+        fsm_data = await state.get_data()
+        balance = fsm_data.get("balance", 0)
+        search_count = fsm_data.get("search_count", 0)
+        referral_balance = fsm_data.get("referral_balance", 0)
+
+        profile_text = (
+            f"👤 *Ваш профиль*\n\n"
+            f"ID: `{callback.from_user.id}`\n"
+            f"Доступно поисков: {search_count}\n"
+            f"Баланс: {balance} ₽\n"
+            f"Реферальный баланс: {referral_balance} ₽\n"
+            "Дата регистрации: —"
+        )
+
+        await callback.message.edit_text(
+            profile_text,
+            parse_mode="Markdown",
+            reply_markup=profile_keyboard()
+        )
+        await callback.answer("Профиль обновлён ✅", show_alert=False)
+
+    elif data == "top_up":
+        fsm_data = await state.get_data()
+        balance = fsm_data.get("balance", 0) + 100  # пример пополнения
+        await state.update_data(balance=balance)
+        await callback.answer(f"Баланс пополнен на 100 ₽ ✅", show_alert=True)
+
+    elif data == "buy_requests":
+        fsm_data = await state.get_data()
+        search_count = fsm_data.get("search_count", 0) + 1  # пример покупки запроса
+        await state.update_data(search_count=search_count)
+        await callback.answer("Вы купили 1 запрос ✅", show_alert=True)
+
     else:
-        # временная заглушка для остальных кнопок
         await callback.answer(f"Вы нажали: {data}", show_alert=True)
 
 
