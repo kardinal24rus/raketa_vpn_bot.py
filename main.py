@@ -60,7 +60,7 @@ translations = {
         "language_prompt": "Выберите язык / Choose language:",
         "notifications": "Notifications",
     }
-    # Можно добавить "de", "fr", "es", "cn" аналогично
+    # Можно добавить другие языки: de, fr, es, cn
 }
 
 languages_flags = [
@@ -115,6 +115,7 @@ def get_search_form_keyboard(data: dict, lang="ru"):
     )
 
 def profile_keyboard(lang="ru"):
+    tr = translations[lang]
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -131,7 +132,7 @@ def profile_keyboard(lang="ru"):
                 InlineKeyboardButton(text="🎩 Связаться с нами", callback_data="contact")
             ],
             [
-                InlineKeyboardButton(text=translations[lang]["back"], callback_data="back"),
+                InlineKeyboardButton(text=tr["back"], callback_data="back"),
                 InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings"),
                 InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh")
             ]
@@ -139,7 +140,6 @@ def profile_keyboard(lang="ru"):
     )
 
 def language_keyboard():
-    # Два столбика
     buttons = []
     for i in range(0, len(languages_flags), 2):
         row = [InlineKeyboardButton(text=languages_flags[i][0], callback_data=f"lang_{languages_flags[i][1]}")]
@@ -154,7 +154,6 @@ router = Router()
 # ------------------ HANDLERS ------------------
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
-    # Проверяем, есть ли язык, если нет, показываем выбор
     data = await state.get_data()
     if "language" not in data:
         await state.set_state(SearchState.language_selection)
@@ -163,7 +162,7 @@ async def start(message: Message, state: FSMContext):
         await show_start_content(message, state, data["language"])
 
 async def show_start_content(message: Message, state: FSMContext, lang="ru"):
-    tr = translations[lang]
+    tr = translations.get(lang, translations["ru"])
     await state.set_state(SearchState.form)
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     await state.update_data(balance=0, search_count=0, referral_balance=0,
@@ -198,7 +197,7 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
     data = callback.data
     fsm_data = await state.get_data()
     lang = fsm_data.get("language","ru")
-    tr = translations[lang]
+    tr = translations.get(lang, translations["ru"])
 
     # ---------- Выбор языка ----------
     if data.startswith("lang_"):
