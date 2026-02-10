@@ -7,9 +7,12 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
-API_TOKEN = os.getenv("API_TOKEN")  # Убедись, что переменная окружения API_TOKEN установлена
+# ===== Инициализация токена =====
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("Ошибка: не задан токен бота! Установи переменную окружения BOT_TOKEN.")
 
-bot = Bot(token=API_TOKEN)
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 # ===== Состояния =====
@@ -49,9 +52,8 @@ def search_buttons(user_id):
               "Возраст от", "Возраст", "Возраст до", "Место рождения", "Сбросить", "Страна", "Искать"]
     builder = InlineKeyboardBuilder()
     for field in fields:
-        field_key = field.lower().replace(" ", "_")
-        value = data.get(field_key, field)
-        builder.add(InlineKeyboardButton(text=f"{value}", callback_data=f"search_{field_key}"))
+        value = data.get(field.lower(), field)
+        builder.add(InlineKeyboardButton(text=f"{value}", callback_data=f"search_{field.lower()}"))
     return builder.as_markup(row_width=3)
 
 # ===== Профиль =====
@@ -90,7 +92,6 @@ def buy_requests_menu():
 # ===== Старт =====
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Инициализация данных пользователя
     user_id = message.from_user.id
     if user_id not in users_data:
         users_data[user_id] = {"balance": 0, "free_requests": 1, "search_data": {}}
@@ -106,9 +107,6 @@ async def choose_language(call: types.CallbackQuery):
 @dp.callback_query(F.data == "search_partial")
 async def search_partial(call: types.CallbackQuery):
     user_id = call.from_user.id
-    if user_id not in users_data:
-        users_data[user_id] = {"balance": 0, "free_requests": 1, "search_data": {}}
-
     if users_data[user_id]["balance"] <= 0 and users_data[user_id]["free_requests"] <= 0:
         await call.message.answer("Пополните баланс для использования поиска.")
     else:
@@ -122,9 +120,6 @@ async def search_partial(call: types.CallbackQuery):
 @dp.callback_query(F.data == "my_profile")
 async def my_profile(call: types.CallbackQuery):
     user_id = call.from_user.id
-    if user_id not in users_data:
-        users_data[user_id] = {"balance": 0, "free_requests": 1, "search_data": {}}
-
     data = users_data[user_id]
     text = (f"Ваш ID: {user_id}\n"
             f"Доступно поисков: {data['free_requests']}\n"
@@ -136,36 +131,30 @@ async def my_profile(call: types.CallbackQuery):
 
 @dp.callback_query(F.data == "my_bots")
 async def my_bots(call: types.CallbackQuery):
-    builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="Назад", callback_data="menu_back"))
-    await call.message.answer("Раздел на завершающей стадии разработки.", reply_markup=builder.as_markup())
+    await call.message.answer("Раздел на завершающей стадии разработки.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", callback_data="menu_back")]
+    ]))
     await call.answer()
 
 @dp.callback_query(F.data == "partner_program")
 async def partner_program(call: types.CallbackQuery):
     user_id = call.from_user.id
-    if user_id not in users_data:
-        users_data[user_id] = {"balance": 0, "free_requests": 1, "search_data": {}}
-
     ref_link = f"https://t.me/yourbot?start={user_id}"
     text = (f"🤝 Партнёрская программа\n"
             f"Ваша реферальная ссылка: {ref_link}\n"
             f"Статистика: Баланс: $0.00, Сегодня: $0")
     builder = InlineKeyboardBuilder()
-    builder.add(
-        InlineKeyboardButton(text="Вывод средств", callback_data="withdraw"),
-        InlineKeyboardButton(text="Назад", callback_data="menu_back")
-    )
+    builder.add(InlineKeyboardButton(text="Вывод средств", callback_data="withdraw"),
+                InlineKeyboardButton(text="Назад", callback_data="menu_back"))
     await call.message.answer(text, reply_markup=builder.as_markup())
     await call.answer()
 
-# ===== Обработка поиска =====
+# ===== Обработка бесплатного запроса =====
 @dp.callback_query(F.data.startswith("search_"))
 async def search_field(call: types.CallbackQuery, state: FSMContext):
     field = call.data[7:]
-    user_id = call.from_user.id
-
-    if field == "сбросить" or field == "reset":
+    if field == "сбросить":
+        user_id = call.from_user.id
         users_data[user_id]["search_data"] = {}
         await call.message.edit_reply_markup(reply_markup=search_buttons(user_id))
     else:
@@ -194,11 +183,4 @@ async def input_field(message: types.Message, state: FSMContext):
 # ===== Запуск бота =====
 if __name__ == "__main__":
     import asyncio
-
-    async def main():
-        try:
-            await dp.start_polling(bot)
-        finally:
-            await bot.session.close()
-
-    asyncio.run(main())
+    asyncio.run(dp.start_polling(bot))
