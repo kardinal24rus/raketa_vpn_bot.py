@@ -1,186 +1,258 @@
+import asyncio
 import os
-from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.fsm.storage.memory import MemoryStorage
+from dotenv import load_dotenv
+
+from aiogram import Bot, Dispatcher, Router, F
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton
+)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
-# ===== Инициализация токена =====
+# =====================
+# CONFIG
+# =====================
+load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise ValueError("Ошибка: не задан токен бота! Установи переменную окружения BOT_TOKEN.")
+OWNER_ID = 7014418816
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+# =====================
+# USER MODEL (in-memory)
+# =====================
+USERS = {}
 
-# ===== Состояния =====
-class SearchStates(StatesGroup):
-    waiting_for_field_input = State()
-    waiting_for_search = State()
+def get_user(user_id: int):
+    if user_id not in USERS:
+        USERS[user_id] = {
+            "role": "user",   # owner | whitelist | user
+            "balance": 0,
+            "free": 0,
+        }
+    return USERS[user_id]
 
-# ===== Хранилище пользователей =====
-users_data = {}  # user_id: {balance, free_requests, search_data}
+def can_search(user: dict) -> bool:
+    if user["role"] == "owner":
+        return True
 
-# ===== Главное меню =====
-def main_menu():
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="Поиск по неполным данным", callback_data="search_partial"),
-        InlineKeyboardButton(text="Мой профиль", callback_data="my_profile")
-    )
-    builder.row(
-        InlineKeyboardButton(text="Мои боты", callback_data="my_bots"),
-        InlineKeyboardButton(text="Партнёрская программа", callback_data="partner_program")
-    )
-    return builder.as_markup()
+    if user["balance"] > 0:
+        user["balance"] -= 1
+        return True
 
-# ===== Языковой выбор =====
-def language_menu():
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="Русский 🇷🇺", callback_data="lang_ru"),
-        InlineKeyboardButton(text="English 🇬🇧", callback_data="lang_en")
-    )
-    return builder.as_markup()
+    if user["free"] > 0:
+        user["free"] -= 1
+        return True
 
-# ===== Кнопки поиска =====
-def search_buttons(user_id):
-    data = users_data.get(user_id, {}).get("search_data", {})
-    fields = ["Фамилия", "Имя", "Отчество", "День", "Месяц", "Год",
-              "Возраст от", "Возраст", "Возраст до", "Место рождения", "Сбросить", "Страна", "Искать"]
-    builder = InlineKeyboardBuilder()
-    for field in fields:
-        value = data.get(field.lower(), field)
-        builder.add(InlineKeyboardButton(text=f"{value}", callback_data=f"search_{field.lower()}"))
-    return builder.as_markup(row_width=3)
+    return False
 
-# ===== Профиль =====
-def profile_buttons():
-    builder = InlineKeyboardBuilder()
-    builder.add(
-        InlineKeyboardButton(text="Пополнить", callback_data="profile_topup"),
-        InlineKeyboardButton(text="Купить запросы", callback_data="profile_buy_requests"),
-        InlineKeyboardButton(text="Скрытие данных", callback_data="profile_hide"),
-        InlineKeyboardButton(text="Отслеживание поисков", callback_data="profile_tracking")
-    )
-    builder.add(
-        InlineKeyboardButton(text="Связаться с нами", callback_data="profile_contact"),
-        InlineKeyboardButton(text="Настройки 🔧", callback_data="profile_settings"),
-        InlineKeyboardButton(text="Обновить ↻", callback_data="profile_refresh")
-    )
-    return builder.as_markup(row_width=2)
+# =====================
+# KEYBOARDS
+# =====================
+bottom_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="📂 Показать меню"),
+            KeyboardButton(text="👤 Выбрать пользователя")
+        ]
+    ],
+    resize_keyboard=True
+)
 
-# ===== Прайс запросов =====
-PRICE_LIST = [
-    (1, "$1"),
-    (10, "$5"),
-    (25, "$10"),
-    (65, "$20"),
-    (600, "$160"),
-    (10000, "$500")
+main_menu_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🔍 Поиск по неполным данным")],
+        [KeyboardButton(text="👤 Мой профиль")],
+        [KeyboardButton(text="💰 Пополнить баланс")],
+    ],
+    resize_keyboard=True
+)
+
+payment_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="💳 CryptoBot")],
+        [KeyboardButton(text="⬅️ Назад")],
+    ],
+    resize_keyboard=True
+)
+
+# =====================
+# SEARCH FSM
+# =====================
+class SearchState(StatesGroup):
+    fill_form = State()
+    waiting_value = State()
+
+FIELDS = [
+    ("Фамилия", "last_name"),
+    ("Имя", "first_name"),
+    ("Никнейм", "nickname"),
 ]
 
-def buy_requests_menu():
-    builder = InlineKeyboardBuilder()
-    for count, price in PRICE_LIST:
-        builder.add(InlineKeyboardButton(text=f"{count} - {price}", callback_data=f"buy_{count}"))
-    builder.add(InlineKeyboardButton(text="Назад", callback_data="profile_back"))
-    return builder.as_markup(row_width=1)
+FIELDS_MAP = {title: key for title, key in FIELDS}
 
-# ===== Старт =====
-@dp.message(Command("start"))
-async def start(message: types.Message):
-    user_id = message.from_user.id
-    if user_id not in users_data:
-        users_data[user_id] = {"balance": 0, "free_requests": 1, "search_data": {}}
-    await message.answer("Выберите язык / Select language:", reply_markup=language_menu())
+def search_keyboard(form: dict):
+    keyboard = []
+    for title, key in FIELDS:
+        if key in form:
+            keyboard.append([KeyboardButton(text=f"{form[key]} ✅")])
+        else:
+            keyboard.append([KeyboardButton(text=title)])
 
-# ===== Обработка выбора языка =====
-@dp.callback_query(F.data.startswith("lang_"))
-async def choose_language(call: types.CallbackQuery):
-    await call.message.answer("Главное меню:", reply_markup=main_menu())
-    await call.answer()
+    keyboard.append([
+        KeyboardButton(text="🔄 Сбросить"),
+        KeyboardButton(text="🔍 Искать"),
+    ])
 
-# ===== Главное меню обработка =====
-@dp.callback_query(F.data == "search_partial")
-async def search_partial(call: types.CallbackQuery):
-    user_id = call.from_user.id
-    if users_data[user_id]["balance"] <= 0 and users_data[user_id]["free_requests"] <= 0:
-        await call.message.answer("Пополните баланс для использования поиска.")
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+cancel_kb = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="❌ Отмена")]],
+    resize_keyboard=True
+)
+
+# =====================
+# MOCK SEARCH
+# =====================
+def mock_search(form: dict):
+    return [
+        {
+            "type": "Личность",
+            "value": f"{form.get('last_name','Иванов')} {form.get('first_name','Иван')}",
+            "source": "mock",
+            "confidence": 80
+        },
+        {
+            "type": "Соцсети",
+            "value": f"vk.com/{form.get('nickname','example')}",
+            "source": "mock",
+            "confidence": 70
+        }
+    ]
+
+# =====================
+# ROUTERS
+# =====================
+router = Router()
+
+START_TEXT = (
+    "🕵️ «Шерлок». Если информация существует — я её найду.\n\n"
+    "Отправьте данные или фото."
+)
+
+@router.message(F.text == "/start")
+@router.message(F.text == "📂 Показать меню")
+async def start_handler(message: Message):
+    user = get_user(message.from_user.id)
+    if message.from_user.id == OWNER_ID:
+        user["role"] = "owner"
+
+    await message.answer(START_TEXT, reply_markup=main_menu_kb)
+    await message.answer("Меню ⬇️", reply_markup=bottom_kb)
+
+@router.message(F.text == "👤 Мой профиль")
+async def profile(message: Message):
+    user = get_user(message.from_user.id)
+
+    if user["role"] == "owner":
+        access = "👑 Владелец"
+        left = "∞"
+    elif user["free"] > 0:
+        access = "🎁 Партнёрский"
+        left = user["free"]
     else:
-        users_data[user_id]["search_data"] = {}
-        await call.message.answer(
-            "Вы можете указать любое количество данных (все поля необязательны):",
-            reply_markup=search_buttons(user_id)
-        )
-    await call.answer()
+        access = "💳 Стандартный"
+        left = user["balance"]
 
-@dp.callback_query(F.data == "my_profile")
-async def my_profile(call: types.CallbackQuery):
-    user_id = call.from_user.id
-    data = users_data[user_id]
-    text = (f"Ваш ID: {user_id}\n"
-            f"Доступно поисков: {data['free_requests']}\n"
-            f"Ваш баланс: ${data['balance']}\n"
-            f"Реферальный баланс: $0.00\n"
-            f"Дата регистрации: 23.07.2025 17:40")
-    await call.message.answer(text, reply_markup=profile_buttons())
-    await call.answer()
+    await message.answer(
+        f"Ваш ID: {message.from_user.id}\n"
+        f"Тип доступа: {access}\n"
+        f"Доступно поисков: {left}"
+    )
 
-@dp.callback_query(F.data == "my_bots")
-async def my_bots(call: types.CallbackQuery):
-    await call.message.answer("Раздел на завершающей стадии разработки.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Назад", callback_data="menu_back")]
-    ]))
-    await call.answer()
-
-@dp.callback_query(F.data == "partner_program")
-async def partner_program(call: types.CallbackQuery):
-    user_id = call.from_user.id
-    ref_link = f"https://t.me/yourbot?start={user_id}"
-    text = (f"🤝 Партнёрская программа\n"
-            f"Ваша реферальная ссылка: {ref_link}\n"
-            f"Статистика: Баланс: $0.00, Сегодня: $0")
-    builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="Вывод средств", callback_data="withdraw"),
-                InlineKeyboardButton(text="Назад", callback_data="menu_back"))
-    await call.message.answer(text, reply_markup=builder.as_markup())
-    await call.answer()
-
-# ===== Обработка бесплатного запроса =====
-@dp.callback_query(F.data.startswith("search_"))
-async def search_field(call: types.CallbackQuery, state: FSMContext):
-    field = call.data[7:]
-    if field == "сбросить":
-        user_id = call.from_user.id
-        users_data[user_id]["search_data"] = {}
-        await call.message.edit_reply_markup(reply_markup=search_buttons(user_id))
-    else:
-        await call.message.answer(f"Введите {field}:", reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="cancel_input")]]))
-        await state.set_state(SearchStates.waiting_for_field_input)
-        await state.update_data(field=field)
-    await call.answer()
-
-@dp.callback_query(F.data == "cancel_input")
-async def cancel_input(call: types.CallbackQuery, state: FSMContext):
+# ========= SEARCH =========
+@router.message(F.text == "🔍 Поиск по неполным данным")
+async def start_search(message: Message, state: FSMContext):
     await state.clear()
-    user_id = call.from_user.id
-    await call.message.answer("Отменено.", reply_markup=search_buttons(user_id))
-    await call.answer()
+    await state.set_state(SearchState.fill_form)
 
-@dp.message(SearchStates.waiting_for_field_input)
-async def input_field(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Заполните любые поля:",
+        reply_markup=search_keyboard({})
+    )
+
+@router.message(SearchState.fill_form, F.text.in_(FIELDS_MAP))
+async def ask_value(message: Message, state: FSMContext):
+    await state.update_data(last=FIELDS_MAP[message.text])
+    await state.set_state(SearchState.waiting_value)
+    await message.answer("Введите значение:", reply_markup=cancel_kb)
+
+@router.message(SearchState.waiting_value, F.text)
+async def save_value(message: Message, state: FSMContext):
     data = await state.get_data()
-    field = data["field"]
-    user_id = message.from_user.id
-    users_data[user_id]["search_data"][field] = message.text
-    await message.answer("Данные сохранены.", reply_markup=search_buttons(user_id))
-    await state.clear()
+    form = data.get("form", {})
+    form[data["last"]] = message.text
 
-# ===== Запуск бота =====
+    await state.update_data(form=form)
+    await state.set_state(SearchState.fill_form)
+
+    await message.answer("Сохранено.", reply_markup=search_keyboard(form))
+
+@router.message(SearchState.fill_form, F.text == "🔄 Сбросить")
+async def reset(message: Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(SearchState.fill_form)
+    await message.answer("Форма очищена.", reply_markup=search_keyboard({}))
+
+@router.message(SearchState.fill_form, F.text == "🔍 Искать")
+async def run_search(message: Message, state: FSMContext):
+    user = get_user(message.from_user.id)
+    if not can_search(user):
+        await message.answer("❌ Недостаточно запросов", reply_markup=payment_kb)
+        return
+
+    data = await state.get_data()
+    form = data.get("form", {})
+    results = mock_search(form)
+
+    text = "🔎 Результаты:\n\n"
+    for r in results:
+        text += f"🔹 {r['type']}:\n• {r['value']} ({r['confidence']}%)\n\n"
+
+    await message.answer(text, reply_markup=bottom_kb)
+
+# ========= PAYMENTS =========
+@router.message(F.text == "💰 Пополнить баланс")
+async def topup(message: Message):
+    await message.answer("Выберите способ:", reply_markup=payment_kb)
+
+@router.message(F.text == "💳 CryptoBot")
+async def pay(message: Message):
+    user = get_user(message.from_user.id)
+    user["balance"] += 5
+    await message.answer("✅ Начислено 5 запросов", reply_markup=main_menu_kb)
+
+# ========= ADMIN =========
+@router.message(F.text.startswith("/grant"))
+async def grant(message: Message):
+    if message.from_user.id != OWNER_ID:
+        return
+
+    _, uid, amount = message.text.split()
+    u = get_user(int(uid))
+    u["role"] = "whitelist"
+    u["free"] += int(amount)
+
+    await message.answer(f"Выдано {amount} запросов пользователю {uid}")
+
+# =====================
+# APP
+# =====================
+async def main():
+    bot = Bot(BOT_TOKEN)
+    dp = Dispatcher()
+    dp.include_router(router)
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(dp.start_polling(bot))
+    asyncio.run(main())
