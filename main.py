@@ -6,8 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from datetime import datetime
-from handlers.payment import router as payment_router
-
+from handlers.payment import router as payment_router  # Модуль оплаты
 
 # ------------------ CONFIG ------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -39,6 +38,7 @@ translations = {
 
 languages_flags = [
     ("🇷🇺 Русский", "ru"),
+    ("🇬🇧 English", "en"),  # Добавили английский
 ]
 
 # ------------------ KEYBOARDS ------------------
@@ -115,9 +115,15 @@ async def start(message: Message, state: FSMContext):
     data = await state.get_data()
     if "language" not in data:
         await state.set_state(SearchState.language_selection)
-        await message.answer(translations["ru"]["language_prompt"], reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=languages_flags[0][0], callback_data=f"lang_{languages_flags[0][1]}")]]
-        ))
+        # Отображаем выбор языков (русский + английский)
+        await message.answer(
+            translations["ru"]["language_prompt"], 
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text=flag, callback_data=f"lang_{code}")] for flag, code in languages_flags
+                ]
+            )
+        )
     else:
         await show_start_content(message, state)
 
@@ -231,9 +237,14 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
 async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
-    dp.include_router(router)
-    await dp.start_polling(bot)
+
+    # 🔥 Сначала подключаем payment_router
     dp.include_router(payment_router)
+
+    # 🔥 Потом основной router
+    dp.include_router(router)
+
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
