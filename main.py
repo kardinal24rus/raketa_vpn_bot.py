@@ -2,32 +2,33 @@ import asyncio
 import os
 from aiogram import Bot, Dispatcher, Router
 from aiogram.types import (
-    Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, LabeledPrice
+    Message, ReplyKeyboardMarkup, KeyboardButton,
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    CallbackQuery, LabeledPrice
 )
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from datetime import datetime
 
-# ------------------ CONFIG ------------------
+# ---------------- CONFIG ----------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не найден")
-
-STARS_PROVIDER_TOKEN = os.getenv("STARS_PROVIDER_TOKEN")  # Для Telegram Stars
+STARS_PROVIDER_TOKEN = os.getenv("STARS_PROVIDER_TOKEN")  # Stars токен
 CRYPTO_WALLETS = {
-    "USDT": "UQAKrbQwdQWKzSrVPU-KwcJvF6SkZUBPQHzEJtABznMvoA7X",
-    "TON": "UQA9h8H460r7ESOSuzHYgKqYfD9sSex6uet2XzVYq2g-2iFN"
+    "USDT": "ВАШ_USDT_АДРЕС",
+    "TON": "ВАШ_TON_АДРЕС"
 }
 
-# ------------------ FSM ------------------
+# ---------------- FSM ----------------
 class SearchState(StatesGroup):
     language_selection = State()
     form = State()
     current_input = State()
     choose_payment = State()
 
-# ------------------ TRANSLATIONS ------------------
+# ---------------- TRANSLATIONS ----------------
 translations = {
     "ru": {
         "surname": "Фамилия", "name": "Имя", "patronymic": "Отчество",
@@ -66,22 +67,22 @@ languages_flags = [
     ("🇬🇧 English", "en")
 ]
 
-# ------------------ TARIFFS ------------------
+# ---------------- PACKAGES ----------------
 STARS_PACKAGES = [
     {"searches": 1, "stars": 20},
     {"searches": 5, "stars": 100},
     {"searches": 10, "stars": 200},
 ]
-
 CRYPTO_PACKAGES = {
-    "USDT": [2,5,10],
-    "TON": [0.5,2,5]
+    "USDT": [2, 5, 10],
+    "TON": [0.5, 2, 5]
 }
 
-# ------------------ KEYBOARDS ------------------
+# ---------------- KEYBOARDS ----------------
 def bottom_keyboard():
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📂 Показать меню"), KeyboardButton(text="👤 Выбрать пользователя")]],
+        keyboard=[[KeyboardButton(text="📂 Показать меню"),
+                   KeyboardButton(text="👤 Выбрать пользователя")]],
         resize_keyboard=True
     )
 
@@ -144,17 +145,17 @@ def profile_keyboard():
         ]
     )
 
-# ------------------ ROUTER ------------------
+# ---------------- ROUTER ----------------
 router = Router()
 
-# ------------------ START ------------------
+# ---------------- START ----------------
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     data = await state.get_data()
     if "language" not in data:
         await state.set_state(SearchState.language_selection)
         kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=f[0], callback_data=f"lang_{f[1]}") for f in languages_flags]]
+            inline_keyboard=[[InlineKeyboardButton(text=f[0], callback_data=f"lang_{f[1]}")] for f in languages_flags]
         )
         await message.answer(translations["ru"]["language_prompt"], reply_markup=kb)
     else:
@@ -166,9 +167,20 @@ async def show_start_content(message: Message, state: FSMContext):
     await state.set_state(SearchState.form)
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     await state.update_data(balance=0, search_count=0, referral_balance=0, registration_date=now, agent_duration="6 мес., 16 дн.")
-    
+
+    # --- Основное сообщение с профилем ---
     await message.answer(
-        "🕵️ Пример профиля...",
+        "🕵️ Личность:\n"
+        "Навальный Алексей Анатольевич 04.06.1976 - ФИО\n\n"
+        "📲 Контакты:\n79999688666 – номер телефона\n79999688666@mail.ru – email\n\n"
+        "🚘 Транспорт:\nВ395ОК199 – номер автомобиля\nXTA211440C5106924 – VIN автомобиля\n\n"
+        "💬 Социальные сети:\nvk.com/sherlock – Вконтакте\ntiktok.com/@sherlock – Tiktok\ninstagram.com/sherlock – Instagram\nok.ru/profile/58460 – Одноклассники\n\n"
+        "📟 Telegram:\n@sherlock, tg123456 – логин или ID\n\n"
+        "📄 Документы:\n/vu 1234567890 – водительские права\n/passport 1234567890 – паспорт\n/snils 12345678901 – СНИЛС\n/inn 123456789012 – ИНН\n\n"
+        "🌐 Онлайн-следы:\n/tag хирург москва – поиск по телефонным книгам\nsherlock.com или 1.1.1.1 – домен или IP\n\n"
+        "🏚 Недвижимость:\n/adr Москва, Островитянова, 9к4, 94\n77:01:0004042:6987 - кадастровый номер\n\n"
+        "🏢 Юридическое лицо:\n/inn 2540214547 – ИНН\n1107449004464 – ОГРН или ОГРНИП\n\n"
+        "📸 Отправьте лицо человека, чтобы попробовать найти его.",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="🔍 Поиск по неполным данным", callback_data="partial_search")],
@@ -180,7 +192,7 @@ async def show_start_content(message: Message, state: FSMContext):
     )
     await message.answer(reply_markup=bottom_keyboard())
 
-# ------------------ CALLBACK HANDLER ------------------
+# ---------------- CALLBACK ----------------
 @router.callback_query(lambda c: True)
 async def callback_handler(callback: CallbackQuery, state: FSMContext):
     data = callback.data
@@ -188,70 +200,18 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
     lang = fsm_data.get("language","ru")
     t = translations[lang]
 
-    # ---------- Выбор языка ----------
+    # --- Выбор языка ---
     if data.startswith("lang_"):
-        await state.update_data(language=data.replace("lang_",""))
+        await state.update_data(language=data.replace("lang_", ""))
         await callback.message.delete()
         await show_start_content(callback.message, state)
         await callback.answer()
         return
 
-    # ---------- Поиск по неполным данным ----------
-    if data == "partial_search":
-        await state.set_state(SearchState.form)
-        await callback.message.delete()
-        await callback.message.answer(t["partial_search"], reply_markup=get_search_form_keyboard(fsm_data, lang=lang))
-        await callback.answer()
-        return
-
-    # ---------- Ввод поля ----------
-    if data.startswith("input_"):
-        field = data.replace("input_","")
-        await state.set_state(SearchState.current_input)
-        await state.update_data(current_field=field)
-        await callback.message.answer(
-            t["input_prompt"].format(field=t.get(field,field)),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t["cancel"], callback_data="cancel_input")]])
-        )
-        await callback.answer()
-        return
-
-    if data == "cancel_input":
-        await state.set_state(SearchState.form)
-        fsm_data = await state.get_data()
-        await callback.message.delete()
-        await callback.message.answer("Форма поиска:", reply_markup=get_search_form_keyboard(fsm_data, lang=lang))
-        await callback.answer("Ввод отменён ✅")
-        return
-
-    # ---------- Назад ----------
-    if data == "back_to_start" or data == "back":
-        await callback.message.delete()
-        await show_start_content(callback.message, state)
-        await callback.answer()
-        return
-
-    # ---------- Сбросить форму ----------
-    if data == "reset_form":
-        await state.update_data({k:"" for k in ["surname","name","patronymic","day","month","year","age_from","age","age_to","birthplace","country"]})
-        await state.set_state(SearchState.form)
-        await callback.message.delete()
-        await callback.message.answer(t["form_cleared"], reply_markup=get_search_form_keyboard({}, lang=lang))
-        await callback.answer()
-        return
-
-    # ---------- Искать ----------
-    if data == "search_data":
-        search_preview = "\n".join([f"{k}: {v}" for k,v in fsm_data.items() if v and k!="current_field"])
-        search_preview = search_preview or "⚠️ Пока ничего не введено"
-        await callback.message.answer(f"{t['search_preview']}\n{search_preview}")
-        await callback.answer()
-        return
-
-    # ---------- Профиль ----------
+    # --- Профиль ---
     if data == "profile":
         profile_text = (
-            f"Ваш ID: {callback.from_user.id}\n\n"
+            f"Ваш ID: {callback.from_user.id}\n"
             f"Доступно поисков: {fsm_data.get('search_count',0)}\n"
             f"Ваш баланс: ${fsm_data.get('balance',0):.2f}\n"
             f"Реферальный баланс: ${fsm_data.get('referral_balance',0):.2f}\n"
@@ -263,23 +223,24 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
 
-    # ---------- Пополнение ----------
+    # --- Пополнение ---
     if data == "top_up":
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="pay_stars")],
                 [InlineKeyboardButton(text="💰 Криптовалюта", callback_data="pay_crypto")],
-                [InlineKeyboardButton(text=t["back"], callback_data="profile")]
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]
             ]
         )
         await callback.message.edit_text(t["payment_prompt"], reply_markup=kb)
         await callback.answer()
         return
 
-    # ----- Stars -----
+    # --- Stars ---
     if data == "pay_stars":
-        keyboard = [[InlineKeyboardButton(text=f"{p['searches']} поисков — {p['stars']} ⭐", callback_data=f"buy_stars:{i}")] for i,p in enumerate(STARS_PACKAGES)]
-        keyboard.append([InlineKeyboardButton(text=t["back"], callback_data="top_up")])
+        keyboard = [[InlineKeyboardButton(text=f"{p['searches']} поисков — {p['stars']} ⭐",
+                                          callback_data=f"buy_stars:{i}")] for i,p in enumerate(STARS_PACKAGES)]
+        keyboard.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="top_up")])
         await callback.message.edit_text(t["package_prompt"], reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
         await callback.answer()
         return
@@ -299,27 +260,22 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
 
-    # ----- Crypto -----
+    # --- Crypto ---
     if data == "pay_crypto":
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=c, callback_data=f"crypto_{c}")] for c in CRYPTO_PACKAGES]
-        )
-        kb.inline_keyboard.append([InlineKeyboardButton(text=t["back"], callback_data="top_up")])
-        await callback.message.edit_text("Выберите криптовалюту:", reply_markup=kb)
+        keyboard = [[InlineKeyboardButton(text=c, callback_data=f"crypto_{c}")] for c in CRYPTO_PACKAGES]
+        keyboard.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="top_up")])
+        await callback.message.edit_text("Выберите криптовалюту:", reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
         await callback.answer()
         return
 
     if data.startswith("crypto_"):
         crypto = data.split("_")[1]
         wallet = CRYPTO_WALLETS[crypto]
-        await callback.message.answer(
-            f"💰 Оплата {crypto}\nОтправьте сумму на этот кошелек:\n{wallet}\n\n"
-            f"После оплаты ваши поиски будут начислены автоматически."
-        )
+        await callback.message.answer(f"Оплатите на кошелек:\n{wallet}\n\nПосле оплаты ваши поиски будут начислены автоматически.")
         await callback.answer()
         return
 
-# ------------------ MAIN ------------------
+# ---------------- MAIN ----------------
 async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
