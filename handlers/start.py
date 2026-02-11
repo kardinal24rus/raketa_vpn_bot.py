@@ -74,4 +74,4 @@ async def start(message: Message, state: FSMContext):
     await message.answer(
         START_TEXT,
         reply_markup=start_inline_keyboard()
-    )
+    from handlers.start import router as start_router
