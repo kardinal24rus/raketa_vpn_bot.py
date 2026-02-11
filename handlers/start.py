@@ -1,1 +1,1 @@
-﻿{\rtf1}
+from aiogram import Router
