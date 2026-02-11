@@ -1,119 +1,109 @@
 from aiogram import Router, F
-from aiogram.types import (
-    CallbackQuery, Message,
-    InlineKeyboardMarkup, InlineKeyboardButton,
-    LabeledPrice, PreCheckoutQuery
-)
+from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
 
 router = Router()
 
 # =========================
-# НАСТРОЙКИ
+# ТАРИФЫ
 # =========================
-
-TELEGRAM_PROVIDER_TOKEN = "PASTE_YOUR_PROVIDER_TOKEN"
-CRYPTO_PAY_LINK = "https://t.me/CryptoBot?start=YOUR_ID"
-
-# searches — сколько поисков
-# price — цена в копейках (RUB)
 PACKAGES = {
-    "p1": {"searches": 1, "price": 100},
-    "p10": {"searches": 10, "price": 500},
-    "p25": {"searches": 25, "price": 1000},
-    "p65": {"searches": 65, "price": 2000},
+    "p1": {"searches": 1, "stars": 20},
+    "p5": {"searches": 5, "stars": 100},
+    "p10": {"searches": 10, "stars": 200},
+    "p15": {"searches": 15, "stars": 300},
+    "p20": {"searches": 20, "stars": 400},
+    "p100": {"searches": 100, "stars": 1490},
 }
 
 # =========================
-# ВЫБОР СПОСОБА ОПЛАТЫ
+# FSM ОПЛАТЫ
+# =========================
+class PaymentState(StatesGroup):
+    choose_method = State()
+    choose_package = State()
+
+# =========================
+# КНОПКА «ПОПОЛНИТЬ»
 # =========================
 @router.callback_query(F.data == "top_up")
-async def top_up(callback: CallbackQuery):
+async def top_up(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(PaymentState.choose_method)
     await callback.message.edit_text(
         "💰 Выберите способ оплаты:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Банковская карта", callback_data="pay_tg")],
-            [InlineKeyboardButton(text="🪙 Криптовалюта", callback_data="pay_crypto")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]
-        ])
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="⭐ Оплата звёздами", callback_data="pay_stars")],
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")],
+            ]
+        )
     )
     await callback.answer()
 
 # =========================
-# ВЫБОР ПАКЕТА
+# ВЫБОР ТАРИФА
 # =========================
-def packages_keyboard(prefix: str):
-    kb = []
+@router.callback_query(F.data == "pay_stars")
+async def choose_stars_package(callback: CallbackQuery):
+    keyboard = []
     for key, pack in PACKAGES.items():
-        kb.append([
+        keyboard.append([
             InlineKeyboardButton(
-                text=f"{pack['searches']} поисков",
-                callback_data=f"{prefix}:{key}"
+                text=f"🔍 {pack['searches']} поисков — {pack['stars']} ⭐",
+                callback_data=f"buy_stars:{key}"
             )
         ])
-    kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="top_up")])
-    return InlineKeyboardMarkup(inline_keyboard=kb)
-
-@router.callback_query(F.data == "pay_tg")
-async def pay_tg(callback: CallbackQuery):
+    keyboard.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="top_up")])
     await callback.message.edit_text(
-        "💳 Выберите пакет:",
-        reply_markup=packages_keyboard("buy_tg")
+        "Выберите пакет:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
 
 # =========================
-# TELEGRAM PAYMENTS
+# СОЗДАНИЕ INVOICE (STARS)
 # =========================
-@router.callback_query(F.data.startswith("buy_tg:"))
-async def buy_tg(callback: CallbackQuery):
-    key = callback.data.split(":")[1]
-    pack = PACKAGES[key]
+@router.callback_query(F.data.startswith("buy_stars:"))
+async def buy_stars(callback: CallbackQuery):
+    package_key = callback.data.split(":")[1]
+    pack = PACKAGES[package_key]
+
+    prices = [LabeledPrice(label=f"{pack['searches']} поисков", amount=pack["stars"])]
 
     await callback.message.answer_invoice(
-        title="Покупка поисков",
-        description=f"{pack['searches']} поисков",
-        payload=f"tg:{key}",
-        provider_token=TELEGRAM_PROVIDER_TOKEN,
-        currency="RUB",
-        prices=[
-            LabeledPrice(
-                label="Поиски",
-                amount=pack["price"]
-            )
-        ],
+        title="Пополнение поисков",
+        description=f"Начисление {pack['searches']} поисков",
+        payload=f"stars:{package_key}",
+        provider_token="",  # Здесь указываешь токен Telegram Payments, если используешь реальные платежи
+        currency="XTR",     # Можно оставить XTR для теста
+        prices=prices
     )
     await callback.answer()
 
+# =========================
+# PRE-CHECKOUT
+# =========================
 @router.pre_checkout_query()
-async def pre_checkout(pre: PreCheckoutQuery):
-    await pre.answer(ok=True)
+async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
 
+# =========================
+# УСПЕШНАЯ ОПЛАТА
+# =========================
 @router.message(F.successful_payment)
-async def successful_payment(message: Message):
+async def successful_payment(message: Message, state: FSMContext):
     payload = message.successful_payment.invoice_payload
-    key = payload.split(":")[1]
-    searches = PACKAGES[key]["searches"]
+    if payload.startswith("stars:"):
+        package_key = payload.split(":")[1]
+        searches = PACKAGES[package_key]["searches"]
 
-    # TODO: начисление поисков пользователю (БД)
-    # add_searches(user_id=message.from_user.id, count=searches)
+        data = await state.get_data()
+        current_searches = data.get("search_count", 0)
+        await state.update_data(search_count=current_searches + searches)
 
-    await message.answer(
-        f"✅ Оплата прошла успешно\n"
-        f"🔍 Начислено поисков: {searches}"
-    )
-
-# =========================
-# CRYPTO
-# =========================
-@router.callback_query(F.data == "pay_crypto")
-async def pay_crypto(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "🪙 Оплата криптовалютой\n\n"
-        "Перейдите по ссылке и оплатите.\n"
-        "После оплаты напишите в поддержку.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💎 Оплатить", url=CRYPTO_PAY_LINK)],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="top_up")]
-        ])
-    )
-    await callback.answer()
+        await message.answer(
+            f"✅ Оплата прошла успешно\n"
+            f"🔍 Начислено: {searches} поисков\n"
+            f"📊 Всего доступно: {current_searches + searches}"
+        )
