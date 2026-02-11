@@ -6,6 +6,8 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from datetime import datetime
+from handlers.payment import router as payment_router
+
 
 # ------------------ CONFIG ------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -231,6 +233,7 @@ async def main():
     dp = Dispatcher()
     dp.include_router(router)
     await dp.start_polling(bot)
+    dp.include_router(payment_router)
 
 if __name__ == "__main__":
     asyncio.run(main())
