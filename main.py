@@ -4,7 +4,9 @@ from aiogram import Bot, Dispatcher, Router
 from aiogram.types import (
     Message, ReplyKeyboardMarkup, KeyboardButton,
     InlineKeyboardMarkup, InlineKeyboardButton,
-    CallbackQuery, LabeledPrice
+    CallbackQuery, LabeledPrice,
+    PreCheckoutQuery
+)
 )
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -274,6 +276,36 @@ async def callback_handler(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer(f"Оплатите на кошелек:\n{wallet}\n\nПосле оплаты ваши поиски будут начислены автоматически.")
         await callback.answer()
         return
+# ---------------- PAYMENT HANDLERS ----------------
+
+@router.pre_checkout_query()
+async def process_pre_checkout_query(pre_checkout_query: PreCheckoutQuery, bot: Bot):
+    # Обязательно подтверждаем оплату
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+
+@router.message(lambda message: message.successful_payment is not None)
+async def process_successful_payment(message: Message, state: FSMContext):
+    payment = message.successful_payment
+    payload = payment.invoice_payload  # например "stars:0"
+
+    if payload.startswith("stars:"):
+        idx = int(payload.split(":")[1])
+        package = STARS_PACKAGES[idx]
+
+        # Получаем текущие данные
+        data = await state.get_data()
+        current_searches = data.get("search_count", 0)
+
+        # Начисляем поиски
+        new_search_count = current_searches + package["searches"]
+        await state.update_data(search_count=new_search_count)
+
+        await message.answer(
+            f"✅ Оплата прошла успешно!\n"
+            f"Начислено поисков: {package['searches']}\n"
+            f"Теперь у вас доступно: {new_search_count}"
+        )
 
 # ---------------- MAIN ----------------
 async def main():
