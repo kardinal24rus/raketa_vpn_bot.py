@@ -1,43 +1,15 @@
 from aiogram import Router
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
+from keyboards import start_inline_keyboard
 from states import SearchState
 
 router = Router()
 
-@router.message(CommandStart())
-async def start(message: Message, state: FSMContext):
-    # Сохраняем язык по умолчанию
-    await state.set_state(SearchState.language_selection)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru"),
-             InlineKeyboardButton(text="🇬🇧 English", callback_data="lang_en")]
-        ]
-    )
-    await message.answer("Выберите язык / Choose language:", reply_markup=from aiogram import Router, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
-from aiogram.filters import CommandStart
-from aiogram.fsm.context import FSMContext
-
-router = Router()
-
-# ------------------ Кнопки под сообщением ------------------
-def start_inline_keyboard():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Поиск по неполным данным", callback_data="partial_search")],
-            [InlineKeyboardButton(text="👤 Мой профиль", callback_data="profile")],
-            [InlineKeyboardButton(text="🤖 Мои боты", callback_data="my_bots")],
-            [InlineKeyboardButton(text="🤝 Партнёрская программа", callback_data="partner_program")],
-        ]
-    )
-
-# ------------------ Сообщение старта ------------------
 START_TEXT = (
     "🕵️ Личность:\n"
-    "Петросян Евгений Анатольевич 04.06.1976 – ФИО\n\n"
+    "Петросян ЕвгенийАнатольевич 04.06.1976 – ФИО\n\n"
     "📲 Контакты:\n"
     "79999688666 – номер телефона\n"
     "79999688666@mail.ru – email\n\n"
@@ -68,10 +40,7 @@ START_TEXT = (
     "📸 Отправьте лицо человека, чтобы попробовать найти его."
 )
 
-# ------------------ Хэндлер /start ------------------
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
-    await message.answer(
-        START_TEXT,
-        reply_markup=start_inline_keyboard()
-    from handlers.start import router as start_router
+    await state.set_state(SearchState.form)
+    await message.answer(START_TEXT, reply_markup=start_inline_keyboard())
