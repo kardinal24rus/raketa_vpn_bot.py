@@ -1,8 +1,8 @@
 from aiogram import Router
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from keyboards import start_inline_keyboard
+from keyboards import start_inline_keyboard, get_partial_search_keyboard
 from states import SearchState
 
 router = Router()
@@ -18,7 +18,7 @@ START_TEXT = (
     "XTA211440C5106924 – VIN автомобиля\n\n"
     "💬 Социальные сети:\n"
     "vk.com/sherpik – Вконтакте\n"
-    "тик ток.com/@shellack – тик ток\n"
+    "tiktok.com/@shellack – Tiktok\n"
     "instagram.com/mizim – Instagram\n"
     "ok.ru/profile/58460 – Одноклассники\n\n"
     "📟 Telegram:\n"
@@ -40,31 +40,36 @@ START_TEXT = (
     "📸 Отправьте лицо человека, чтобы попробовать найти его."
 )
 
+# ---------------- START MESSAGE ----------------
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext):
+    # Сбрасываем состояние
     await state.set_state(SearchState.form)
+    # Отправляем приветственное сообщение с кнопками
     await message.answer(START_TEXT, reply_markup=start_inline_keyboard())
-await callback.message.delete()
-        # Здесь нужно вызвать вашу функцию show_start_content
-from handlers.start 
-import show_start_content
-        await show_start_content(callback.message, state)
-        await callback.answer()
-        return
 
-    # ----- Сбросить форму -----
-    if data == "reset_form":
-        keys = ["surname","name","patronymic","day","month","year","age_from","age","age_to","birthplace"]
-        await state.update_data({k:"" for k in keys})
+# ---------------- CALLBACKS ----------------
+@router.callback_query()
+async def start_callbacks(callback: CallbackQuery, state: FSMContext):
+    data = callback.data
+
+    # ----- Поиск по неполным данным -----
+    if data == "partial_search":
         await state.set_state(SearchState.form)
         await callback.message.delete()
         await callback.message.answer(
-            "Форма очищена ✅",
+            "Вы можете узнать любое количество данных — фамилия, имя, отчество, дату или год рождения, "
+            "возраст, место рождения и так далее. Достаточно заполнить то, что у вас есть, все поля не обязательны.",
             reply_markup=get_partial_search_keyboard({})
         )
         await callback.answer()
         return
 
-    # ----- Искать -----
-    if data == "search_data":
-        search
+    # ----- Назад -----
+    if data == "back_to_start":
+        await callback.message.delete()
+        await message.answer(START_TEXT, reply_markup=start_inline_keyboard())
+        await callback.answer()
+        return
+
+    # Здесь можно добавить другие коллбэки, например "profile", "my_bots", "partner_program" позже
