@@ -18,7 +18,7 @@ START_TEXT = (
     "XTA211440C5106924 – VIN автомобиля\n\n"
     "💬 Социальные сети:\n"
     "vk.com/sherpik – Вконтакте\n"
-    "tiktok.com/@shellack – Tiktok\n"
+    "тик ток.com/@shellack – тик ток\n"
     "instagram.com/mizim – Instagram\n"
     "ok.ru/profile/58460 – Одноклассники\n\n"
     "📟 Telegram:\n"
