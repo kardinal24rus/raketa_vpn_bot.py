@@ -14,4 +14,3 @@ def start_inline_keyboard():
             [InlineKeyboardButton(text="🤖 Мои боты", callback_data="my_bots")],
             [InlineKeyboardButton(text="🤝 Партнёрская программа", callback_data="partner_program")],
         ]
-    )
