@@ -15,8 +15,10 @@ def start_inline_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🔍 Поиск по неполным данным", callback_data="partial_search")],
-            [InlineKeyboardButton(text="👤 Мой профиль", callback_data="profile")],
-            [InlineKeyboardButton(text="🤖 Мои боты", callback_data="my_bots")],
+            [
+                InlineKeyboardButton(text="👤 Мой профиль", callback_data="profile"),
+                InlineKeyboardButton(text="🤖 Мои боты", callback_data="my_bots")
+            ],
             [InlineKeyboardButton(text="🤝 Партнёрская программа", callback_data="partner_program")],
         ]
     )
