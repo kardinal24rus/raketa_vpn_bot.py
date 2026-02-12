@@ -1,6 +1,14 @@
 """
 Telegram бот для поиска информации из открытых источников
 """
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # загружаем переменные из .env
+
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN не установлен!")
 import os
 import logging
 from datetime import datetime
