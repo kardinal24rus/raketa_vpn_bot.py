@@ -1,15 +1,34 @@
 from aiogram import Router
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.fsm.context import FSMContext
+from keyboards import bottom_keyboard
 
 router = Router()
 
-@router.callback_query(lambda c: c.data == "buy_requests")
-async def buy_requests(callback: CallbackQuery):
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="pay_stars")],
-            [InlineKeyboardButton(text="💰 Криптовалюта", callback_data="pay_crypto")],
-        ]
+# Простейший каркас кнопки «Пополнить»
+@router.callback_query(lambda c: c.data == "top_up")
+async def top_up_callback(callback: CallbackQuery, state: FSMContext):
+    # Текст для примера
+    text = (
+        "💰 Выберите способ оплаты:\n"
+        "Пока это пример, позже добавим интеграцию с платежной системой.\n\n"
+        "Выберите пакет поисков:"
     )
-    await callback.message.answer("💰 Выберите способ оплаты:", reply_markup=kb)
+
+    # Кнопки выбора пакета (пример)
+    package_buttons = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="10 поисков – $5", callback_data="package_10")],
+        [InlineKeyboardButton(text="50 поисков – $20", callback_data="package_50")],
+        [InlineKeyboardButton(text="100 поисков – $35", callback_data="package_100")],
+    ])
+
+    await callback.message.delete()
+    await callback.message.answer(text, reply_markup=package_buttons)
+    await callback.answer()
+
+# Обработка выбора пакета (пока просто подтверждение)
+@router.callback_query(lambda c: c.data.startswith("package_"))
+async def package_selected(callback: CallbackQuery, state: FSMContext):
+    package = callback.data.replace("package_", "")
+    await callback.message.answer(f"Вы выбрали пакет: {package} (это пока тест)")
     await callback.answer()
