@@ -4,4 +4,3 @@ class SearchState(StatesGroup):
     language_selection = State()
     form = State()
     current_input = State()
-    choose_payment = State()
