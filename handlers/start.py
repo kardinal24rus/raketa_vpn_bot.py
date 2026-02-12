@@ -46,7 +46,8 @@ async def start(message: Message, state: FSMContext):
     await message.answer(START_TEXT, reply_markup=start_inline_keyboard())
 await callback.message.delete()
         # Здесь нужно вызвать вашу функцию show_start_content
-        from handlers.start import show_start_content
+from handlers.start 
+import show_start_content
         await show_start_content(callback.message, state)
         await callback.answer()
         return
