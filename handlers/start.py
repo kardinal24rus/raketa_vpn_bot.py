@@ -8,9 +8,46 @@ from states import SearchState
 
 router = Router()
 
+# 🔹 БОЛЬШОЙ СТАРТОВЫЙ ТЕКСТ
+START_TEXT = (
+    "🕵️ Личность:\n"
+    "Петросян Евгений Анатольевич 04.06.1976 – ФИО\n\n"
+    "📲 Контакты:\n"
+    "79999688666 – номер телефона\n"
+    "79999688666@mail.ru – email\n\n"
+    "🚘 Транспорт:\n"
+    "В395ОК199 – номер автомобиля\n"
+    "XTA211440C5106924 – VIN автомобиля\n\n"
+    "💬 Социальные сети:\n"
+    "vk.com/sherpik – Вконтакте\n"
+    "tiktok.com/@shellack – TikTok\n"
+    "instagram.com/mizim – Instagram\n"
+    "ok.ru/profile/58460 – Одноклассники\n\n"
+    "📟 Telegram:\n"
+    "@glazik, tg123456 – логин или ID\n\n"
+    "📄 Документы:\n"
+    "/vu 1234567890 – водительские права\n"
+    "/passport 1234567890 – паспорт\n"
+    "/snils 12345678901 – СНИЛС\n"
+    "/inn 2540214547 – ИНН\n\n"
+    "🌐 Онлайн-следы:\n"
+    "/tag хирург москва – поиск\n"
+    "sherlock.com или 1.1.1.1 – домен или IP\n\n"
+    "🏚 Недвижимость:\n"
+    "/adr Москва, Островитянова, 9к4, 94\n"
+    "77:01:0004042:6987 – кадастровый номер\n\n"
+    "🏢 Юридическое лицо:\n"
+    "/inn 2540214547 – ИНН\n"
+    "1107449004464 – ОГРН или ОГРНИП\n\n"
+    "📸 Отправьте лицо человека, чтобы попробовать найти его."
+)
+
+# 🔹 ТЕКСТ ФОРМЫ
 FORM_TEXT = (
-    "Заполните известные данные.\n"
-    "Все поля необязательны.\n"
+    "Вы можете узнать любое количество данных — фамилия, имя, отчество,\n"
+    "дату или год рождения, возраст, место рождения и так далее.\n"
+    "Достаточно заполнить то, что у вас есть.\n\n"
+    "Все поля необязательны."
 )
 
 FIELDS = {
@@ -32,12 +69,12 @@ FIELDS = {
 async def start_handler(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "Добро пожаловать 👋\n\nВыберите действие:",
+        START_TEXT,
         reply_markup=start_inline_keyboard(),
     )
 
 
-# --- Открытие формы ---
+# --- Открыть форму ---
 @router.callback_query(F.data == "partial_search")
 async def open_form(callback: CallbackQuery, state: FSMContext):
     await state.set_state(SearchState.form)
@@ -51,13 +88,13 @@ async def open_form(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# --- Возврат назад ---
+# --- Назад ---
 @router.callback_query(F.data == "back_to_start")
 async def back_to_start(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
     await callback.message.answer(
-        "Главное меню 👇",
+        START_TEXT,
         reply_markup=start_inline_keyboard(),
     )
 
@@ -76,7 +113,7 @@ async def choose_field(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# --- Ввод значения ---
+# --- Сохранение значения ---
 @router.message(SearchState.current_input)
 async def save_value(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -88,12 +125,12 @@ async def save_value(message: Message, state: FSMContext):
     await state.set_state(SearchState.form)
 
     await message.answer(
-        "Данные сохранены.\n\n" + FORM_TEXT,
+        FORM_TEXT,
         reply_markup=get_partial_search_keyboard(),
     )
 
 
-# --- Сброс формы ---
+# --- Сброс ---
 @router.callback_query(F.data == "reset_form")
 async def reset_form(callback: CallbackQuery, state: FSMContext):
     await state.update_data({})
@@ -111,7 +148,7 @@ async def reset_form(callback: CallbackQuery, state: FSMContext):
 async def preview_search(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
 
-    text = "Предпросмотр запроса:\n\n"
+    text = "🔍 Предпросмотр запроса:\n\n"
 
     has_data = False
     for key, value in data.items():
