@@ -3,14 +3,13 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 
 router = Router()
 
-@router.callback_query(lambda c: c.data == "top_up")
-async def top_up(callback: CallbackQuery):
+@router.callback_query(lambda c: c.data == "buy_requests")
+async def buy_requests(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="pay_stars")],
             [InlineKeyboardButton(text="💰 Криптовалюта", callback_data="pay_crypto")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]
         ]
     )
-    await callback.message.edit_text("Выберите способ оплаты:", reply_markup=kb)
+    await callback.message.answer("💰 Выберите способ оплаты:", reply_markup=kb)
     await callback.answer()
