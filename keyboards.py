@@ -1,10 +1,15 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
+
 def bottom_keyboard():
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📂 Показать меню"), KeyboardButton(text="👤 Выбрать пользователя")]],
+        keyboard=[
+            [KeyboardButton(text="📂 Показать меню"),
+             KeyboardButton(text="👤 Выбрать пользователя")]
+        ],
         resize_keyboard=True
     )
+
 
 def start_inline_keyboard():
     return InlineKeyboardMarkup(
@@ -14,3 +19,4 @@ def start_inline_keyboard():
             [InlineKeyboardButton(text="🤖 Мои боты", callback_data="my_bots")],
             [InlineKeyboardButton(text="🤝 Партнёрская программа", callback_data="partner_program")],
         ]
+    )
