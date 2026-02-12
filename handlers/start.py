@@ -44,3 +44,26 @@ START_TEXT = (
 async def start(message: Message, state: FSMContext):
     await state.set_state(SearchState.form)
     await message.answer(START_TEXT, reply_markup=start_inline_keyboard())
+await callback.message.delete()
+        # Здесь нужно вызвать вашу функцию show_start_content
+        from handlers.start import show_start_content
+        await show_start_content(callback.message, state)
+        await callback.answer()
+        return
+
+    # ----- Сбросить форму -----
+    if data == "reset_form":
+        keys = ["surname","name","patronymic","day","month","year","age_from","age","age_to","birthplace"]
+        await state.update_data({k:"" for k in keys})
+        await state.set_state(SearchState.form)
+        await callback.message.delete()
+        await callback.message.answer(
+            "Форма очищена ✅",
+            reply_markup=get_partial_search_keyboard({})
+        )
+        await callback.answer()
+        return
+
+    # ----- Искать -----
+    if data == "search_data":
+        search
