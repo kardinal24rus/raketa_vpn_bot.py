@@ -2,16 +2,15 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
+
 from keyboards import start_inline_keyboard, get_partial_search_keyboard
 from states import SearchState
 
 router = Router()
 
-START_TEXT = "Добро пожаловать 👋"
-
 FORM_TEXT = (
-    "Вы можете узнать любое количество данных.\n"
-    "Заполните только то, что у вас есть.\n\n"
+    "Заполните известные данные.\n"
+    "Все поля необязательны.\n"
 )
 
 FIELDS = {
@@ -28,34 +27,50 @@ FIELDS = {
 }
 
 
-# --- /start ---
+# --- START ---
 @router.message(CommandStart())
-async def start(message: Message, state: FSMContext):
+async def start_handler(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer(START_TEXT, reply_markup=start_inline_keyboard())
+    await message.answer(
+        "Добро пожаловать 👋\n\nВыберите действие:",
+        reply_markup=start_inline_keyboard(),
+    )
 
 
-# --- Открыть форму ---
+# --- Открытие формы ---
 @router.callback_query(F.data == "partial_search")
 async def open_form(callback: CallbackQuery, state: FSMContext):
     await state.set_state(SearchState.form)
     await state.update_data({})
-    await callback.message.delete()
 
     await callback.message.answer(
         FORM_TEXT,
-        reply_markup=get_partial_search_keyboard({})
+        reply_markup=get_partial_search_keyboard(),
     )
+
     await callback.answer()
 
 
-# --- Нажатие на кнопку поля ---
+# --- Возврат назад ---
+@router.callback_query(F.data == "back_to_start")
+async def back_to_start(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+
+    await callback.message.answer(
+        "Главное меню 👇",
+        reply_markup=start_inline_keyboard(),
+    )
+
+    await callback.answer()
+
+
+# --- Выбор поля ---
 @router.callback_query(F.data.in_(FIELDS.keys()))
-async def select_field(callback: CallbackQuery, state: FSMContext):
-    field_key = FIELDS[callback.data]
+async def choose_field(callback: CallbackQuery, state: FSMContext):
+    field_name = FIELDS[callback.data]
 
     await state.set_state(SearchState.current_input)
-    await state.update_data(current_field=field_key)
+    await state.update_data(current_field=field_name)
 
     await callback.message.answer("Введите значение:")
     await callback.answer()
@@ -63,49 +78,49 @@ async def select_field(callback: CallbackQuery, state: FSMContext):
 
 # --- Ввод значения ---
 @router.message(SearchState.current_input)
-async def save_field_value(message: Message, state: FSMContext):
+async def save_value(message: Message, state: FSMContext):
     data = await state.get_data()
     field = data.get("current_field")
 
     if field:
         await state.update_data({field: message.text})
 
-    new_data = await state.get_data()
-
     await state.set_state(SearchState.form)
 
     await message.answer(
-        FORM_TEXT,
-        reply_markup=get_partial_search_keyboard(new_data)
+        "Данные сохранены.\n\n" + FORM_TEXT,
+        reply_markup=get_partial_search_keyboard(),
     )
 
 
-# --- Сброс ---
+# --- Сброс формы ---
 @router.callback_query(F.data == "reset_form")
 async def reset_form(callback: CallbackQuery, state: FSMContext):
     await state.update_data({})
-    await state.set_state(SearchState.form)
 
-    await callback.message.edit_text(
-        FORM_TEXT,
-        reply_markup=get_partial_search_keyboard({})
+    await callback.message.answer(
+        "Форма очищена.\n\n" + FORM_TEXT,
+        reply_markup=get_partial_search_keyboard(),
     )
-    await callback.answer("Форма очищена")
+
+    await callback.answer()
 
 
-# --- Искать ---
+# --- Предпросмотр ---
 @router.callback_query(F.data == "search_data")
 async def preview_search(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
 
-    preview = "🔍 Предпросмотр запроса:\n\n"
+    text = "Предпросмотр запроса:\n\n"
 
+    has_data = False
     for key, value in data.items():
-        if key not in ["current_field"] and value:
-            preview += f"{key}: {value}\n"
+        if key != "current_field" and value:
+            text += f"{key}: {value}\n"
+            has_data = True
 
-    if preview.strip() == "🔍 Предпросмотр запроса:":
-        preview += "Вы ничего не заполнили."
+    if not has_data:
+        text += "Вы ничего не заполнили."
 
-    await callback.message.answer(preview)
+    await callback.message.answer(text)
     await callback.answer()
