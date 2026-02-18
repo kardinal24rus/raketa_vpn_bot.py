@@ -7,6 +7,9 @@ load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 CX = os.getenv("GOOGLE_CX")
 
+print("DEBUG: API_KEY =", API_KEY)
+print("DEBUG: CX =", CX)
+
 class SearchEngine:
     def __init__(self, api_key=API_KEY, cx=CX):
         self.api_key = api_key
@@ -22,7 +25,14 @@ class SearchEngine:
         }
 
         response = requests.get(url, params=params)
-        data = response.json()
+        print("DEBUG: Status Code =", response.status_code)
+        print("DEBUG: Response Text =", response.text[:500])  # первые 500 символов
+
+        try:
+            data = response.json()
+        except Exception as e:
+            print("ERROR: Failed to parse JSON:", e)
+            return []
 
         results = []
         if "items" in data:
@@ -32,5 +42,7 @@ class SearchEngine:
                     "link": item["link"],
                     "snippet": item["snippet"]
                 })
+        else:
+            print("DEBUG: No items found in data:", data)
 
         return results
